@@ -23,8 +23,8 @@
 	model = "BQ268 Walkie Talkie";
 	compatible = "qcom,msm8909-mtp", "qcom,msm8909", "qcom,mtp";
 	qcom,msm-id = <0xf5 0x00 0x102 0x00 0x109 0x00 0x113 0x00>;
-	qcom,pmic-id = <0x1000b 0x00 0x00 0x00>;
-	qcom,board-id = <0x08 0x02>;
+	qcom,pmic-id = <0x1000d 0x00 0x00 0x00>;
+	qcom,board-id = <0x08 0x100>;
 
 };
 
@@ -426,4 +426,29 @@
 		"AMIC1", "MIC BIAS Internal1",
 		"AMIC2", "MIC BIAS Internal2",
 		"AMIC3", "MIC BIAS Internal1";
+
+	/* Remove US/Euro headset jack detection — GPIO97 is matrix keypad col2.
+	 * Strip the us_eu_gpio group from the pinctrl combos so cross_conn_det
+	 * pinctrl doesn't claim GPIO97, and delete the gpio property. */
+	/delete-property/ qcom,cdc-us-euro-gpios;
+	qcom,msm-gpios = "pri_i2s";
+	qcom,pinctrl-names = "all_off", "pri_i2s_act";
+	pinctrl-names = "all_off", "pri_i2s_act";
+	pinctrl-0 = <&cdc_pdm_lines_sus &vdd_spkdrv_sus>;
+	pinctrl-1 = <&cdc_pdm_lines_act &vdd_spkdrv_act>;
+	/delete-property/ pinctrl-2;
+	/delete-property/ pinctrl-3;
+};
+
+/* ── Disable MTP sensor nodes that conflict with matrix keypad GPIOs ────
+ * mpu6050@68 claims GPIO96 (matrix col1), apds9900@39 claims GPIO94.
+ * Neither sensor exists on BQ268 hardware.
+ * ──────────────────────────────────────────────────────────────────────*/
+&i2c_1 {
+	mpu6050@68 {
+		status = "disabled";
+	};
+	avago@39 {
+		status = "disabled";
+	};
 };
