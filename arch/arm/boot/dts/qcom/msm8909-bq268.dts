@@ -378,7 +378,7 @@
 		gpio-activelow;
 		linux,no-autorepeat;
 		linux,wakeup;
-		pinctrl-names = "matrix_keypad_active", "matrix_keypad_suspend";
+		pinctrl-names = "default", "sleep";
 		pinctrl-0 = <&matrix_gpio_active>;
 		pinctrl-1 = <&matrix_gpio_suspend>;
 		row-gpios = <&msm_gpio 98 0x00>,
