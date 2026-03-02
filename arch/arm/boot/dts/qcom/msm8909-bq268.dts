@@ -205,7 +205,9 @@
 		pinctrl-names = "mdss_default", "mdss_sleep";
 		pinctrl-0 = <&mdss_te_active>;
 		pinctrl-1 = <&mdss_te_suspend>;
-		qcom,platform-te-gpio    = <&msm_gpio 24 0>;
+		/* TE GPIO removed: ST7735S FMARK not wired to GPIO24 on BQ268.
+		 * Without this property the driver skips the TE wait and
+		 * transmits frames immediately (matching stock ODM behaviour). */
 		qcom,platform-reset-gpio = <&msm_gpio  2 0>;
 		qcom,platform-spi-dc-gpio = <&msm_gpio 3 0>;
 

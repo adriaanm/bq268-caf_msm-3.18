@@ -447,16 +447,20 @@ int mdss_spi_panel_kickoff(struct mdss_panel_data *pdata,
 		scan_count++;
 	}
 
-	enable_spi_panel_te_irq(ctrl_pdata, true);
+	if (gpio_is_valid(ctrl_pdata->disp_te_gpio)) {
+		enable_spi_panel_te_irq(ctrl_pdata, true);
 
-	mutex_lock(&ctrl_pdata->spi_tx_mutex);
-	reinit_completion(&ctrl_pdata->spi_panel_te);
+		mutex_lock(&ctrl_pdata->spi_tx_mutex);
+		reinit_completion(&ctrl_pdata->spi_panel_te);
 
-	rc = wait_for_completion_timeout(&ctrl_pdata->spi_panel_te,
-				   msecs_to_jiffies(SPI_PANEL_TE_TIMEOUT));
+		rc = wait_for_completion_timeout(&ctrl_pdata->spi_panel_te,
+					   msecs_to_jiffies(SPI_PANEL_TE_TIMEOUT));
 
-	if (rc == 0)
-		pr_err("wait panel TE time out\n");
+		if (rc == 0)
+			pr_err("wait panel TE time out\n");
+	} else {
+		mutex_lock(&ctrl_pdata->spi_tx_mutex);
+	}
 
 	rc = mdss_spi_tx_pixel(tx_buf, ctrl_pdata->byte_pre_frame);
 	mutex_unlock(&ctrl_pdata->spi_tx_mutex);
@@ -1419,7 +1423,7 @@ static int spi_panel_device_register(struct device_node *pan_node,
 	ctrl_pdata->disp_te_gpio = of_get_named_gpio(ctrl_pdev->dev.of_node,
 		"qcom,platform-te-gpio", 0);
 	if (!gpio_is_valid(ctrl_pdata->disp_te_gpio))
-		pr_err("%s:%d, TE gpio not specified\n",
+		pr_info("%s:%d, TE gpio not specified, vsync disabled\n",
 						__func__, __LINE__);
 
 	ctrl_pdata->disp_dc_gpio = of_get_named_gpio(ctrl_pdev->dev.of_node,
@@ -1663,13 +1667,15 @@ static int mdss_spi_panel_probe(struct platform_device *pdev)
 	init_completion(&ctrl_pdata->spi_panel_te);
 	mutex_init(&ctrl_pdata->spi_tx_mutex);
 
-	rc = devm_request_irq(&pdev->dev,
-		gpio_to_irq(ctrl_pdata->disp_te_gpio),
-		spi_panel_te_handler, IRQF_TRIGGER_RISING,
-		"TE_GPIO", ctrl_pdata);
-	if (rc) {
-		pr_err("TE request_irq failed.\n");
-		return rc;
+	if (gpio_is_valid(ctrl_pdata->disp_te_gpio)) {
+		rc = devm_request_irq(&pdev->dev,
+			gpio_to_irq(ctrl_pdata->disp_te_gpio),
+			spi_panel_te_handler, IRQF_TRIGGER_RISING,
+			"TE_GPIO", ctrl_pdata);
+		if (rc) {
+			pr_err("TE request_irq failed.\n");
+			return rc;
+		}
 	}
 
 	pr_debug("%s: spi panel  initialized\n", __func__);
