@@ -15,8 +15,8 @@
 /dts-v1/;
 
 #include "msm8909-mtp.dtsi"
-#include "msm8909-pm8916.dtsi"
-#include "msm8909-pm8916-mtp.dtsi"
+#include "msm8909-pm8909.dtsi"
+#include "msm8909-pm8909-mtp.dtsi"
 #include "msm8909-mtp_qseev4.dtsi"
 
 / {
@@ -199,8 +199,8 @@
 		label = "mdss spi panel";
 		qcom,mdss-fb-map = <&mdss_fb0>;
 		qcom,mdss-mdp = <&mdss_mdp>;
-		vdd-supply = <&pm8916_l17>;
-		vddio-supply = <&pm8916_l6>;
+		vdd-supply = <&pm8909_l17>;
+		vddio-supply = <&pm8909_l6>;
 		qcom,spi-pref-prim-pan = <&mdss_spi_st7735s_cmd>;
 		pinctrl-names = "mdss_default", "mdss_sleep";
 		pinctrl-0 = <&mdss_te_active>;
@@ -438,6 +438,36 @@
 	pinctrl-1 = <&cdc_pdm_lines_act &vdd_spkdrv_act>;
 	/delete-property/ pinctrl-2;
 	/delete-property/ pinctrl-3;
+};
+
+/* ── PON RESIN (pon_2) override ──────────────────────────────────────────
+ * Stock firmware sets RESIN to KEY_DOT (0x3e) with reset disabled, not
+ * the CAF default VOLUMEDOWN (0x72).  Match stock behavior.
+ * ──────────────────────────────────────────────────────────────────────*/
+&pm8909_pon {
+	qcom,pon_2 {
+		linux,code = <0x3e>; /* KEY_DOT */
+		qcom,support-reset = <0>;
+		qcom,s1-timer = <3072>;
+		qcom,s2-timer = <2000>;
+		qcom,s2-type = <7>;
+	};
+};
+
+/* ── MPP4 LED: LCD backlight ─────────────────────────────────────────────
+ * The pm8909-mtp.dtsi sets this as "button-backlight" with no trigger.
+ * The BQ268 SPI panel uses bl_ctrl_wled, so the MPP4 LED must be the
+ * LCD backlight with bkl-trigger to match stock.
+ * ──────────────────────────────────────────────────────────────────────*/
+&spmi_bus {
+	qcom,pm8909@0 {
+		qcom,leds@a300 {
+			qcom,led_mpp_4 {
+				linux,name = "lcd-bl";
+				linux,default-trigger = "bkl-trigger";
+			};
+		};
+	};
 };
 
 /* ── Disable MTP sensor nodes that conflict with matrix keypad GPIOs ────
