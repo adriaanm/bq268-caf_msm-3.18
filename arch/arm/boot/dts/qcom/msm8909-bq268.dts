@@ -418,6 +418,9 @@
  * Override to match stock firmware's routing.
  * ──────────────────────────────────────────────────────────────────────*/
 &audio_codec_mtp {
+	/* BQ268 has no headset jack — disable MBHC to prevent phantom
+	 * line-out detection on floating HPHL/GND pins. */
+	qcom,msm-mbhc-disable;
 	qcom,audio-routing =
 		"RX_BIAS", "MCLK",
 		"SPK_RX_BIAS", "MCLK",
