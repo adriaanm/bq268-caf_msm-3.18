@@ -131,7 +131,7 @@ static void wcd_program_btn_threshold(const struct wcd_mbhc *mbhc, bool micbias)
 	struct snd_soc_card *card = codec->component.card;
 	s16 *btn_low, *btn_high;
 
-	if (mbhc->mbhc_cfg->calibration == NULL) {
+	if (mbhc->mbhc_cfg == NULL || mbhc->mbhc_cfg->calibration == NULL) {
 		dev_err(card->dev, "%s: calibration data is NULL\n", __func__);
 		return;
 	}
@@ -245,6 +245,8 @@ static int wcd_event_notify(struct notifier_block *self, unsigned long val,
 
 	pr_debug("%s: event %s (%d)\n", __func__,
 		 wcd_mbhc_get_event_string(event), event);
+	if (mbhc->mbhc_cfg == NULL)
+		return 0;
 	if (mbhc->mbhc_cb->micbias_enable_status) {
 		micbias2 = mbhc->mbhc_cb->micbias_enable_status(mbhc,
 								MIC_BIAS_2);
