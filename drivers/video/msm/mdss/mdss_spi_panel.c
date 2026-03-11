@@ -339,7 +339,9 @@ static int mdss_spi_panel_event_handler(struct mdss_panel_data *pdata,
 			return rc;
 		}
 		mdss_spi_panel_pinctrl_set_state(ctrl_pdata, true);
-		mdss_spi_panel_reset(pdata, 1);
+		/* Skip reset if cont_splash already claimed GPIOs during probe */
+		if (!(ctrl_pdata->ctrl_state & CTRL_STATE_PANEL_INIT))
+			mdss_spi_panel_reset(pdata, 1);
 		break;
 	case MDSS_EVENT_UNBLANK:
 		rc = mdss_spi_panel_unblank(pdata);
