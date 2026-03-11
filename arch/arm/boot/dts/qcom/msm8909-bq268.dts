@@ -442,11 +442,12 @@
 /* ════════════════════════════════════════════════════════════════════════
  *  4. Audio
  *
- *  Stock firmware keeps the us_eu_gpio pinctrl matrix and defines:
- *  - cdc-us-euro-gpios on gpio31 (not MTP default gpio97)
+ *  No headset jack → MBHC disabled, no us_eu_gpio or cross_conn_det needed.
+ *  Simplify pinctrl matrix to just pri_i2s + vdd_spkdrv.  The MTP default
+ *  matrix includes cross_conn_det (gpio35), which conflicts with I2C3
+ *  device 3-0002 that also claims gpio35 → pinctrl switch fails (-EINVAL).
+ *
  *  - ext speaker PA on gpio36
- *  - MBHC disabled (no physical headset jack)
- *  - cross-conn-det pinctrl already overridden to gpio35 above
  * ════════════════════════════════════════════════════════════════════════ */
 
 &audio_codec_mtp {
@@ -464,8 +465,17 @@
 		"AMIC2", "MIC BIAS Internal2",
 		"AMIC3", "MIC BIAS Internal1";
 
-	qcom,cdc-us-euro-gpios = <&msm_gpio 31 0>;
+	/delete-property/ qcom,cdc-us-euro-gpios;
 	qcom,msm-spk-ext-pa = <&msm_gpio 36 0>;
+
+	/* Override MTP pinctrl matrix: drop us_eu_gpio + cross_conn_det */
+	qcom,msm-gpios = "pri_i2s";
+	qcom,pinctrl-names = "all_off", "pri_i2s_act";
+	pinctrl-names = "all_off", "pri_i2s_act";
+	pinctrl-0 = <&cdc_pdm_lines_sus &vdd_spkdrv_sus>;
+	pinctrl-1 = <&cdc_pdm_lines_act &vdd_spkdrv_act>;
+	/delete-property/ pinctrl-2;
+	/delete-property/ pinctrl-3;
 };
 
 /* ════════════════════════════════════════════════════════════════════════
