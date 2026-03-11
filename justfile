@@ -40,21 +40,22 @@ bootimg: build wifi
     grep -q 'init.bq268.rc' {{out}}/ramdisk/init.rc || sed -i '/^import \/init\.${ro\.zygote}\.rc/a import /init.bq268.rc' {{out}}/ramdisk/init.rc
     cd {{out}}/ramdisk && find . | cpio -o -H newc 2>/dev/null | gzip > ../ramdisk-custom.gz
     python3 {{boot_dir}}/mkbootimg.py {{out}}/zImage-dtb {{out}}/ramdisk-custom.gz /dev/null {{out}}/boot.img
-    @ls -lh {{out}}/boot.img
+    cp {{out}}/boot.img {{out}}/boot-$(git rev-parse --short HEAD).img
+    @ls -lh {{out}}/boot-$(git rev-parse --short HEAD).img
 
 # flash boot image via fastboot (temporary, does not persist)
 fastboot-boot: bootimg
     adb reboot bootloader
     @echo "Waiting for fastboot..."
     fastboot wait-for-device
-    fastboot boot {{out}}/boot.img
+    fastboot boot {{out}}/boot-$(git rev-parse --short HEAD).img
 
 # flash boot image permanently
 fastboot-flash: bootimg
     adb reboot bootloader
     @echo "Waiting for fastboot..."
     fastboot wait-for-device
-    fastboot flash boot {{out}}/boot.img
+    fastboot flash boot {{out}}/boot-$(git rev-parse --short HEAD).img
     fastboot reboot
 
 strip := "/opt/toolchains/gcc-linaro-4.8-2015.06-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-strip"
@@ -98,7 +99,7 @@ task-add description:
     if [ -z "$existing" ]; then
         git notes --ref=tasks add HEAD -m "[todo] {{description}}"
     else
-        printf '%s\n[todo] %s' "$existing" "{{description}}" | git notes --ref=tasks add -f --stdin HEAD
+        printf '%s\n[todo] %s' "$existing" "{{description}}" | git notes --ref=tasks add -f -F - HEAD
     fi
 
 # mark a task done (matches substring, e.g. just task-done "pstore")
@@ -110,7 +111,7 @@ task-done pattern:
     fi
     echo "$existing" | sed '/\[todo\].*{{pattern}}/s/\[todo\]/[done]/' | \
         sed '/\[in_progress\].*{{pattern}}/s/\[in_progress\]/[done]/' | \
-        git notes --ref=tasks add -f --stdin HEAD
+        git notes --ref=tasks add -f -F - HEAD
     git notes --ref=tasks show HEAD
 
 # mark a task in-progress (matches substring)
@@ -121,7 +122,7 @@ task-start pattern:
         echo "No tasks on HEAD"; exit 1
     fi
     echo "$existing" | sed '/\[todo\].*{{pattern}}/s/\[todo\]/[in_progress]/' | \
-        git notes --ref=tasks add -f --stdin HEAD
+        git notes --ref=tasks add -f -F - HEAD
     git notes --ref=tasks show HEAD
 
 # clean build output
