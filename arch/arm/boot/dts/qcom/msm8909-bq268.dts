@@ -45,6 +45,23 @@
 		size = <0x0 0xc00000>;
 		linux,cma-default;
 	};
+
+	ramoops_mem: ramoops_region@8df00000 {
+		compatible = "shared-dma-pool";
+		no-map;
+		reg = <0x0 0x8df00000 0x0 0x40000>;
+	};
+};
+
+/ {
+	ramoops {
+		compatible = "ramoops";
+		memory-region = <&ramoops_mem>;
+		record-size  = <0x10000>;  /* 64KB per oops/panic */
+		console-size = <0x10000>;  /* 64KB kernel console log */
+		pmsg-size    = <0x10000>;  /* 64KB pmsg */
+		ftrace-size  = <0x0>;
+	};
 };
 
 &modem_adsp_mem {
