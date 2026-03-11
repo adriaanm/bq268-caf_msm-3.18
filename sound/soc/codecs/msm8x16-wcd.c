@@ -5621,7 +5621,8 @@ static int msm8x16_wcd_device_up(struct snd_soc_codec *codec)
 	if (ret)
 		dev_err(codec->dev, "%s: mbhc initialization failed\n",
 			__func__);
-	else
+	else if (!of_property_read_bool(codec->component.card->dev->of_node,
+					"qcom,msm-mbhc-disable"))
 		wcd_mbhc_start(&msm8x16_wcd_priv->mbhc,
 			msm8x16_wcd_priv->mbhc.mbhc_cfg);
 
