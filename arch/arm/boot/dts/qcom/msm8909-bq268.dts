@@ -591,8 +591,10 @@
 		gpio-activelow;
 		linux,no-autorepeat;
 		linux,wakeup;
-		pinctrl-names = "matrix_keypad_active",
-				"matrix_keypad_suspend";
+		/* Stock uses "matrix_keypad_active"/"matrix_keypad_suspend"
+		 * but CAF matrix_keypad driver has no explicit pinctrl handling —
+		 * it relies on device core automatic pinctrl for "default"/"sleep" */
+		pinctrl-names = "default", "sleep";
 		pinctrl-0 = <&matrix_gpio_active>;
 		pinctrl-1 = <&matrix_gpio_suspend>;
 		row-gpios = <&msm_gpio 98 0x00>,
