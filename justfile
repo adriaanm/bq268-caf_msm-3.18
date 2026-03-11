@@ -49,9 +49,9 @@ fastboot-flash: bootimg
 
 strip := "/opt/toolchains/gcc-linaro-4.8-2015.06-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-strip"
 
-# build Prima WLAN module from source (cloned in prima/)
+# build Prima WLAN module from source (submodule in prima/)
 wifi: defconfig
-    {{kmake}} M={{justfile_directory()}}/prima WLAN_ROOT={{justfile_directory()}}/prima MODNAME=wlan CONFIG_PRONTO_WLAN=m modules
+    {{kmake}} M={{justfile_directory()}}/prima WLAN_ROOT={{justfile_directory()}}/prima MODNAME=wlan CONFIG_PRONTO_WLAN=m KCFLAGS=-Wno-unused-variable modules
     {{strip}} --strip-unneeded -o {{out}}/wlan.ko prima/wlan.ko
     @ls -lh {{out}}/wlan.ko
 

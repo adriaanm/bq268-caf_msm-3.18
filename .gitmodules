@@ -1,0 +1,4 @@
+[submodule "prima"]
+	path = prima
+	url = https://git.codelinaro.org/clo/la/platform/vendor/qcom-opensource/wlan/prima.git
+	branch = wlan-driver.lnx.1.0.r39-rel
