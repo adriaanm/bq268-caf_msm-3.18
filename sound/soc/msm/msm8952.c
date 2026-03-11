@@ -1682,6 +1682,13 @@ static int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	msm8x16_wcd_spk_ext_pa_cb(enable_spk_ext_pa, codec);
 	msm8x16_wcd_hph_comp_cb(config_hph_compander_gpio, codec);
 
+	if (rtd->card->dev->of_node &&
+	    of_find_property(rtd->card->dev->of_node,
+			     "qcom,msm-mbhc-disable", NULL)) {
+		pr_info("%s: MBHC disabled by DTS\n", __func__);
+		return 0;
+	}
+
 	mbhc_cfg.calibration = def_msm8952_wcd_mbhc_cal();
 	if (mbhc_cfg.calibration) {
 		ret = msm8x16_wcd_hs_detect(codec, &mbhc_cfg);
