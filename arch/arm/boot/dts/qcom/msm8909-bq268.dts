@@ -25,36 +25,111 @@
 	qcom,msm-id = <0xf5 0x00 0x102 0x00 0x109 0x00 0x113 0x00>;
 	qcom,pmic-id = <0x1000d 0x00 0x00 0x00>;
 	qcom,board-id = <0x08 0x100>;
-
 };
 
-/* ── Display ─────────────────────────────────────────────────────────────
- * BQ268 uses an ST7735S 128×160 SPI panel connected via BLSP1-QUP5
- * (physical SPI5, GPIOs 16-19).  The CAF open-source tree exposes this
- * QUP as I2C5; we disable that and add the SPI5 controller instead.
- * ──────────────────────────────────────────────────────────────────────*/
+/* ════════════════════════════════════════════════════════════════════════
+ *  1. Reserved Memory
+ *
+ *  - CMA pool (12MB) matches stock
+ *  - modem_adsp 1MB larger than MTP default (0x5300000 vs 0x5200000)
+ *  - peripheral region shifted accordingly
+ *  - qseev4 SECURE_DMA heap kept (verified boot / TrustZone needs it)
+ * ════════════════════════════════════════════════════════════════════════ */
 
-/* Disable I2C5 — same QUP hardware that we use as SPI5 */
-&i2c_5 {
-	status = "disabled";
-};
-
-/* Disable SPI6 — CAF tree enables it by default, but BQ268 uses SPI5 */
-&spi_0 {
-	status = "disabled";
-};
-
-/* Add spi5 alias to match stock firmware */
-/ {
-	aliases {
-		spi5 = "/soc/spi@78b9000";
+&reserved_mem {
+	linux_cma: linux,cma {
+		compatible = "shared-dma-pool";
+		alloc-ranges = <0x0 0x0 0x0 0xffffffff>;
+		reusable;
+		alignment = <0x0 0x400000>;
+		size = <0x0 0xc00000>;
+		linux,cma-default;
 	};
 };
 
-/* SPI5 pinctrl: GPIOs 16-19, function blsp_spi5 */
-/* Matrix keypad pinctrl: GPIOs 94-98, 110, all GPIO function (pulled up) */
-/* GPIO112 (key_f6, active-high) needs pull-down, separate from the pull-up group */
+&modem_adsp_mem {
+	reg = <0x0 0x88000000 0x0 0x05300000>;
+};
+
+&peripheral_mem {
+	reg = <0x0 0x8d300000 0x0 0x0700000>;
+};
+
+/* ════════════════════════════════════════════════════════════════════════
+ *  2. Pinctrl Overrides
+ *
+ *  Stock uses different GPIOs for several pin groups:
+ *  - pmx_mdss: gpio34/112 (not MTP default gpio25/37)
+ *  - cross-conn-det: gpio35 (not MTP default gpio97)
+ *  - spi2: gpio21/112 only (MTP default includes gpio20)
+ *  - pmx_mdss_te: gpio24 — already correct in msm8909-pinctrl.dtsi
+ * ════════════════════════════════════════════════════════════════════════ */
+
 &msm_gpio {
+	pmx_mdss {
+		mdss_dsi_active: mdss_dsi_active {
+			mux {
+				pins = "gpio34", "gpio112";
+			};
+			config {
+				pins = "gpio34", "gpio112";
+			};
+		};
+		mdss_dsi_suspend: mdss_dsi_suspend {
+			mux {
+				pins = "gpio34", "gpio112";
+			};
+			config {
+				pins = "gpio34", "gpio112";
+			};
+		};
+	};
+
+	cross-conn-det {
+		cross_conn_det_act: lines_on {
+			mux {
+				pins = "gpio35";
+			};
+			config {
+				pins = "gpio35";
+			};
+		};
+		cross_conn_det_sus: lines_off {
+			mux {
+				pins = "gpio35";
+			};
+			config {
+				pins = "gpio35";
+			};
+		};
+	};
+
+	spi2 {
+		spi2_default: spi2_default {
+			mux {
+				pins = "gpio21", "gpio112";
+				function = "blsp_spi2";
+			};
+			config {
+				pins = "gpio21", "gpio112";
+				drive-strength = <12>;
+				bias-disable;
+			};
+		};
+		spi2_sleep: spi2_sleep {
+			mux {
+				pins = "gpio21", "gpio112";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio21", "gpio112";
+				drive-strength = <2>;
+				bias-pull-down;
+			};
+		};
+	};
+
+	/* GPIO112 (key_f6) active-high, needs pull-down */
 	tlmm_gpio_key_hi {
 		gpio_key_hi_active: gpio_key_hi_active {
 			mux {
@@ -80,31 +155,41 @@
 		};
 	};
 
+	/* Matrix keypad GPIOs: rows 98/110, cols 95/96/97, plus 94 */
 	matrix_keypad {
 		matrix_gpio_active: matrix_gpio_active {
 			mux {
-				pins = "gpio98", "gpio110", "gpio95", "gpio96", "gpio97", "gpio94";
+				pins = "gpio98", "gpio110",
+				       "gpio95", "gpio96",
+				       "gpio97", "gpio94";
 				function = "gpio";
 			};
 			config {
-				pins = "gpio98", "gpio110", "gpio95", "gpio96", "gpio97", "gpio94";
+				pins = "gpio98", "gpio110",
+				       "gpio95", "gpio96",
+				       "gpio97", "gpio94";
 				drive-strength = <2>;
 				bias-pull-up;
 			};
 		};
 		matrix_gpio_suspend: matrix_gpio_suspend {
 			mux {
-				pins = "gpio98", "gpio110", "gpio95", "gpio96", "gpio97", "gpio94";
+				pins = "gpio98", "gpio110",
+				       "gpio95", "gpio96",
+				       "gpio97", "gpio94";
 				function = "gpio";
 			};
 			config {
-				pins = "gpio98", "gpio110", "gpio95", "gpio96", "gpio97", "gpio94";
+				pins = "gpio98", "gpio110",
+				       "gpio95", "gpio96",
+				       "gpio97", "gpio94";
 				drive-strength = <2>;
 				bias-pull-up;
 			};
 		};
 	};
 
+	/* SPI5 pinctrl: GPIOs 16-19, function blsp_spi5 */
 	spi5 {
 		spi5_default: spi5_default {
 			mux {
@@ -113,7 +198,7 @@
 			};
 			config {
 				pins = "gpio16", "gpio17", "gpio19";
-				drive-strength = <12>; /* 12 MA */
+				drive-strength = <12>;
 				bias-disable;
 			};
 		};
@@ -124,7 +209,7 @@
 			};
 			config {
 				pins = "gpio16", "gpio17", "gpio19";
-				drive-strength = <2>; /* 2 MA */
+				drive-strength = <2>;
 				bias-pull-down;
 			};
 		};
@@ -153,7 +238,30 @@
 	};
 };
 
-/* SPI5 controller (BLSP1 QUP5) with the MDSS SPI client child device */
+/* ════════════════════════════════════════════════════════════════════════
+ *  3. Display
+ *
+ *  ST7735S 128×160 SPI panel on SPI5 (GPIOs 16-19).
+ *  - Disable I2C5 (same QUP as SPI5) and SPI0/SPI6 (unused)
+ *  - TE signal on GPIO24 (matches stock)
+ *  - Override DSI panels to bl_ctrl_wled (matches stock)
+ * ════════════════════════════════════════════════════════════════════════ */
+
+&i2c_5 {
+	status = "disabled";
+};
+
+&spi_0 {
+	status = "disabled";
+};
+
+/ {
+	aliases {
+		spi5 = "/soc/spi@78b9000";
+	};
+};
+
+/* SPI5 controller (BLSP1 QUP5) */
 &soc {
 	blsp_spi5: spi@78b9000 {
 		compatible = "qcom,spi-qup-v2";
@@ -181,7 +289,7 @@
 		status = "okay";
 
 		qcom,mdss_spi_client {
-			reg = <0>;  /* SPI chip-select 0 — matches stock */
+			reg = <0>;
 			compatible = "qcom,mdss-spi-client";
 			label = "MDSS SPI QUP5 CLIENT";
 			spi-max-frequency = <16000000>;
@@ -193,6 +301,7 @@
 	qcom,mdss-pref-prim-intf = "spi";
 };
 
+/* MDSS SPI display controller */
 &soc {
 	mdss_spi: qcom,mdss_spi {
 		compatible = "qcom,mdss-spi-display";
@@ -205,9 +314,10 @@
 		pinctrl-names = "mdss_default", "mdss_sleep";
 		pinctrl-0 = <&mdss_te_active>;
 		pinctrl-1 = <&mdss_te_suspend>;
-		/* TE GPIO removed: ST7735S FMARK not wired to GPIO24 on BQ268.
-		 * Without this property the driver skips the TE wait and
-		 * transmits frames immediately (matching stock ODM behaviour). */
+		/* TE GPIO omitted: the backported SPI panel driver crashes when
+		 * waiting for TE interrupt.  Stock firmware's driver handles TE
+		 * differently.  Without this property the driver skips the TE
+		 * wait and sends frames immediately. */
 		qcom,platform-reset-gpio = <&msm_gpio  2 0>;
 		qcom,platform-spi-dc-gpio = <&msm_gpio 3 0>;
 
@@ -235,7 +345,8 @@
 		};
 
 		mdss_spi_st7735s_cmd: qcom,mdss_spi_st7735s_cmd {
-			qcom,mdss-spi-panel-name = "st7735s command mode spi panel";
+			qcom,mdss-spi-panel-name =
+				"st7735s command mode spi panel";
 			qcom,mdss-spi-panel-destination = "display_1";
 			qcom,mdss-spi-panel-controller = <&mdss_spi>;
 			qcom,mdss-spi-panel-framerate = <27>;
@@ -266,61 +377,157 @@
 				02 c5 1a 00
 				02 36 00 00
 				02 35 00 00
-				11 e0 04 22 07 0a 2e 30 25 2a 28 26 2e 3a 00 01 03 13 00
-				11 e1 04 16 06 0d 2d 26 23 27 27 25 2d 3b 00 01 04 13 00
+				11 e0 04 22 07 0a 2e 30 25 2a
+				   28 26 2e 3a 00 01 03 13 00
+				11 e1 04 16 06 0d 2d 26 23 27
+				   27 25 2d 3b 00 01 04 13 00
 				02 3a 05 00
 				05 2a 00 00 00 7f 00
 				05 2b 00 00 00 9f 00
 				01 2c 00
 				01 29 00
 				01 2c];
-			qcom,mdss-spi-wakeup-command = [78 01 11 20 01 29 00 01 2c];
-			qcom,mdss-spi-off-command    = [00 01 28 78 01 10];
+			qcom,mdss-spi-wakeup-command =
+				[78 01 11 20 01 29 00 01 2c];
+			qcom,mdss-spi-off-command =
+				[00 01 28 78 01 10];
 			qcom,mdss-spi-bl-min-level = <1>;
 			qcom,mdss-spi-bl-max-level = <255>;
 			qcom,mdss-spi-bl-pmic-control-type = "bl_ctrl_wled";
-			/* reset sequence: value, delay_ms pairs */
 			qcom,mdss-spi-reset-sequence = <1 1 0 1 1 120>;
 			qcom,cont-splash-enabled;
 		};
 	};
 };
 
-/* ── GPIO Keys ───────────────────────────────────────────────────────────
- * The CAF msm8909-mtp.dtsi defines gpio_keys *inside &soc* with camera
- * buttons on GPIO90-92.  The BQ268 repurposes those same GPIOs for PTT
- * buttons.  Override the DTSI's child nodes in-place (same path, same
- * node names) so they merge rather than duplicate.  gpio-key,wakeup is
- * deleted from headset_ptt and key_f3 to match stock.
- * ──────────────────────────────────────────────────────────────────────*/
+/* DSI panels: override bl_ctrl_pwm -> bl_ctrl_wled to match stock */
+&dsi_hx8394d_480_vid {
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
+	/delete-property/ qcom,mdss-dsi-bl-pmic-pwm-frequency;
+	/delete-property/ qcom,mdss-dsi-bl-pmic-bank-select;
+	/delete-property/ qcom,mdss-dsi-pwm-gpio;
+	/delete-property/ qcom,panel-supply-entries;
+};
+
+&dsi_hx8394d_720_vid {
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
+	/delete-property/ qcom,mdss-dsi-bl-pmic-pwm-frequency;
+	/delete-property/ qcom,mdss-dsi-bl-pmic-bank-select;
+	/delete-property/ qcom,mdss-dsi-pwm-gpio;
+	/delete-property/ qcom,panel-supply-entries;
+};
+
+&dsi_hx8394d_qhd_vid {
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
+	/delete-property/ qcom,mdss-dsi-bl-pmic-pwm-frequency;
+	/delete-property/ qcom,mdss-dsi-bl-pmic-bank-select;
+	/delete-property/ qcom,mdss-dsi-pwm-gpio;
+	/delete-property/ qcom,panel-supply-entries;
+};
+
+&dsi_auo_cx_qvga_cmd {
+	/delete-property/ qcom,mdss-dsi-bl-pmic-pwm-frequency;
+	/delete-property/ qcom,mdss-dsi-bl-pmic-bank-select;
+	/delete-property/ qcom,mdss-dsi-pwm-gpio;
+	/delete-property/ qcom,panel-supply-entries;
+};
+
+&dsi_auo_qvga_cmd {
+	/delete-property/ qcom,mdss-dsi-bl-pmic-pwm-frequency;
+	/delete-property/ qcom,mdss-dsi-bl-pmic-bank-select;
+	/delete-property/ qcom,mdss-dsi-pwm-gpio;
+	/delete-property/ qcom,panel-supply-entries;
+};
+
+/* ════════════════════════════════════════════════════════════════════════
+ *  4. Audio
+ *
+ *  Stock firmware keeps the us_eu_gpio pinctrl matrix and defines:
+ *  - cdc-us-euro-gpios on gpio31 (not MTP default gpio97)
+ *  - ext speaker PA on gpio36
+ *  - MBHC disabled (no physical headset jack)
+ *  - cross-conn-det pinctrl already overridden to gpio35 above
+ * ════════════════════════════════════════════════════════════════════════ */
+
+&audio_codec_mtp {
+	qcom,msm-mbhc-hphl-swh = <1>;
+	qcom,msm-mbhc-disable;
+
+	qcom,audio-routing =
+		"RX_BIAS", "MCLK",
+		"SPK_RX_BIAS", "MCLK",
+		"INT_LDO_H", "MCLK",
+		"MIC BIAS Internal1", "Handset Mic",
+		"MIC BIAS Internal2", "Headset Mic",
+		"MIC BIAS Internal1", "Secondary Mic",
+		"AMIC1", "MIC BIAS Internal1",
+		"AMIC2", "MIC BIAS Internal2",
+		"AMIC3", "MIC BIAS Internal1";
+
+	qcom,cdc-us-euro-gpios = <&msm_gpio 31 0>;
+	qcom,msm-spk-ext-pa = <&msm_gpio 36 0>;
+};
+
+/* ════════════════════════════════════════════════════════════════════════
+ *  5. Battery & Charging
+ *
+ *  - QRD SKUI 4.2V 3000mAh battery profile (extracted from stock DTB)
+ *  - Charging enabled with ibatsafe=800mA
+ *  - BMS: force-s2-in-charging, remove volatge-soc-timeout-ms
+ * ════════════════════════════════════════════════════════════════════════ */
+
+/ {
+	mtp_batterydata: qcom,battery-data {
+		qcom,rpull-up-kohm = <100>;
+		qcom,vref-batt-therm = <1800000>;
+
+		#include "batterydata-qrd-skui-4v2-3000mah.dtsi"
+	};
+};
+
+&pm8909_chg {
+	/delete-property/ qcom,charging-disabled;
+	qcom,ibatsafe-ma = <800>;
+	qcom,thermal-mitigation = <800 720 630 0>;
+};
+
+&pm8909_bms {
+	qcom,force-s2-in-charging;
+	/delete-property/ qcom,volatge-soc-timeout-ms;
+};
+
+/* ════════════════════════════════════════════════════════════════════════
+ *  6. GPIO Keys
+ *
+ *  MTP DTSI defines camera_focus (GPIO91), camera_snapshot (GPIO92),
+ *  vol_up (GPIO90).  BQ268 repurposes these as PTT/function keys.
+ *  All keys have gpio-key,wakeup to match stock.
+ * ════════════════════════════════════════════════════════════════════════ */
+
 &soc {
 	gpio_keys {
-		/* Include GPIO112 pull-down group alongside the regular pull-up group */
 		pinctrl-0 = <&gpio_key_active &gpio_key_hi_active>;
 		pinctrl-1 = <&gpio_key_suspend &gpio_key_hi_suspend>;
 
-		/* camera_focus (GPIO91 active-low) → main_ptt */
+		/* camera_focus (GPIO91 active-low) -> main_ptt */
 		camera_focus {
 			label = "main_ptt";
 			linux,code = <0x3b>; /* KEY_F1 */
-			/* gpio-key,wakeup inherited from DTSI */
 		};
 
-		/* camera_snapshot (GPIO92 active-low) → headset_ptt */
+		/* camera_snapshot (GPIO92 active-low) -> headset_ptt */
 		camera_snapshot {
-			/delete-property/ gpio-key,wakeup;
 			label = "headset_ptt";
 			linux,code = <0x3c>; /* KEY_F2 */
 		};
 
-		/* vol_up (GPIO90 active-low) → key_f3 */
+		/* vol_up (GPIO90 active-low) -> key_f3 */
 		vol_up {
-			/delete-property/ gpio-key,wakeup;
 			label = "key_f3";
 			linux,code = <0x3d>; /* KEY_F3 */
 		};
 
-		/* key_f6: GPIO112 active-high, not in DTSI */
+		/* key_f6: GPIO112 active-high */
 		key_f6 {
 			label = "key_f6";
 			gpios = <&msm_gpio 112 0x0>;
@@ -332,10 +539,12 @@
 	};
 };
 
-/* ── GPIO LEDs ────────────────────────────────────────────────────────────
- * BQ268 has three GPIO-driven LEDs: button backlight, green, and red.
- * Red defaults to on (power indicator).  GPIOs 1, 68, 69 on MSM GPIO.
- * ──────────────────────────────────────────────────────────────────────*/
+/* ════════════════════════════════════════════════════════════════════════
+ *  7. GPIO LEDs
+ *
+ *  Button backlight (GPIO1), green (GPIO69), red (GPIO68).
+ * ════════════════════════════════════════════════════════════════════════ */
+
 &soc {
 	gpio-leds {
 		compatible = "gpio-leds";
@@ -367,11 +576,13 @@
 	};
 };
 
-/* ── Matrix Keypad ───────────────────────────────────────────────────────
- * 2-row × 3-col GPIO matrix keypad for menu navigation.
- * Row GPIOs: 98, 110   Col GPIOs: 95, 96, 97
- * Keymap: row0=(SELECT,UP,BACK)  row1=(LEFT,DOWN,RIGHT)
- * ──────────────────────────────────────────────────────────────────────*/
+/* ════════════════════════════════════════════════════════════════════════
+ *  8. Matrix Keypad
+ *
+ *  2-row x 3-col GPIO matrix.  Keymap order and pinctrl-names must
+ *  match stock (matrix_keypad_active / matrix_keypad_suspend).
+ * ════════════════════════════════════════════════════════════════════════ */
+
 &soc {
 	matrix_keypad@0 {
 		compatible = "gpio-matrix-keypad";
@@ -380,7 +591,8 @@
 		gpio-activelow;
 		linux,no-autorepeat;
 		linux,wakeup;
-		pinctrl-names = "default", "sleep";
+		pinctrl-names = "matrix_keypad_active",
+				"matrix_keypad_suspend";
 		pinctrl-0 = <&matrix_gpio_active>;
 		pinctrl-1 = <&matrix_gpio_suspend>;
 		row-gpios = <&msm_gpio 98 0x00>,
@@ -388,64 +600,21 @@
 		col-gpios = <&msm_gpio 95 0x00>,
 		            <&msm_gpio 96 0x00>,
 		            <&msm_gpio 97 0x00>;
-		/* (row<<24)|(col<<16)|keycode */
-		linux,keymap = <0x00000161	/* row0,col0: KEY_SELECT */
-		                0x00010067	/* row0,col1: KEY_UP     */
-		                0x0002009e	/* row0,col2: KEY_BACK   */
-		                0x01000069	/* row1,col0: KEY_LEFT   */
+		linux,keymap = <0x00010067	/* row0,col1: KEY_UP     */
 		                0x0101006c	/* row1,col1: KEY_DOWN   */
-		                0x0102006a>;	/* row1,col2: KEY_RIGHT  */
+		                0x0002009e	/* row0,col2: KEY_BACK   */
+		                0x0102006a	/* row1,col2: KEY_RIGHT  */
+		                0x00000161	/* row0,col0: KEY_SELECT */
+		                0x01000069>;	/* row1,col0: KEY_LEFT   */
 	};
 };
 
-/* ── Reserved Memory ─────────────────────────────────────────────────────
- * Stock firmware allocates 1MB more for modem_adsp (0x5300000 vs 0x5200000)
- * and shifts the peripheral region base accordingly.  Match stock to avoid
- * potential modem firmware memory overrun at runtime.
- * ──────────────────────────────────────────────────────────────────────*/
-&modem_adsp_mem {
-	reg = <0x0 0x88000000 0x0 0x05300000>;
-};
+/* ════════════════════════════════════════════════════════════════════════
+ *  9. PON RESIN
+ *
+ *  Stock: KEY_DOT (0x3e), reset disabled.
+ * ════════════════════════════════════════════════════════════════════════ */
 
-&peripheral_mem {
-	reg = <0x0 0x8d300000 0x0 0x0700000>;
-};
-
-
-/* ── Audio Routing ───────────────────────────────────────────────────────
- * The DTSI uses "MIC BIAS External" for the handset/secondary microphones,
- * but the BQ268 (like QRD/MTP variants) uses the internal bias lines.
- * Override to match stock firmware's routing.
- * ──────────────────────────────────────────────────────────────────────*/
-&audio_codec_mtp {
-	qcom,audio-routing =
-		"RX_BIAS", "MCLK",
-		"SPK_RX_BIAS", "MCLK",
-		"INT_LDO_H", "MCLK",
-		"MIC BIAS Internal1", "Handset Mic",
-		"MIC BIAS Internal2", "Headset Mic",
-		"MIC BIAS Internal1", "Secondary Mic",
-		"AMIC1", "MIC BIAS Internal1",
-		"AMIC2", "MIC BIAS Internal2",
-		"AMIC3", "MIC BIAS Internal1";
-
-	/* Remove US/Euro headset jack detection — GPIO97 is matrix keypad col2.
-	 * Strip the us_eu_gpio group from the pinctrl combos so cross_conn_det
-	 * pinctrl doesn't claim GPIO97, and delete the gpio property. */
-	/delete-property/ qcom,cdc-us-euro-gpios;
-	qcom,msm-gpios = "pri_i2s";
-	qcom,pinctrl-names = "all_off", "pri_i2s_act";
-	pinctrl-names = "all_off", "pri_i2s_act";
-	pinctrl-0 = <&cdc_pdm_lines_sus &vdd_spkdrv_sus>;
-	pinctrl-1 = <&cdc_pdm_lines_act &vdd_spkdrv_act>;
-	/delete-property/ pinctrl-2;
-	/delete-property/ pinctrl-3;
-};
-
-/* ── PON RESIN (pon_2) override ──────────────────────────────────────────
- * Stock firmware sets RESIN to KEY_DOT (0x3e) with reset disabled, not
- * the CAF default VOLUMEDOWN (0x72).  Match stock behavior.
- * ──────────────────────────────────────────────────────────────────────*/
 &pm8909_pon {
 	qcom,pon_2 {
 		linux,code = <0x3e>; /* KEY_DOT */
@@ -456,26 +625,71 @@
 	};
 };
 
-/* ── MPP4 LED: LCD backlight ─────────────────────────────────────────────
- * The pm8909-mtp.dtsi sets this as "button-backlight" with no trigger.
- * The BQ268 SPI panel uses bl_ctrl_wled, so the MPP4 LED must be the
- * LCD backlight with bkl-trigger to match stock.
- * ──────────────────────────────────────────────────────────────────────*/
+/* ════════════════════════════════════════════════════════════════════════
+ *  10. PMIC Overrides
+ *
+ *  - MPP4 (LCD backlight): current-setting=20, bkl-trigger
+ *  - GPIO2 (NFC_CLK_REQ): disabled
+ *  - MPP2 (backlight PWM): disabled
+ *  - MPP4: enabled
+ * ════════════════════════════════════════════════════════════════════════ */
+
 &spmi_bus {
 	qcom,pm8909@0 {
 		qcom,leds@a300 {
 			qcom,led_mpp_4 {
 				linux,name = "lcd-bl";
 				linux,default-trigger = "bkl-trigger";
+				qcom,current-setting = <20>;
 			};
 		};
 	};
 };
 
-/* ── Disable MTP sensor nodes that conflict with matrix keypad GPIOs ────
- * mpu6050@68 claims GPIO96 (matrix col1), apds9900@39 claims GPIO94.
- * Neither sensor exists on BQ268 hardware.
- * ──────────────────────────────────────────────────────────────────────*/
+&pm8909_gpios {
+	gpio@c100 { /* GPIO 2 */
+		status = "disabled";
+	};
+};
+
+&pm8909_mpps {
+	mpp@a100 { /* MPP 2 */
+		status = "disabled";
+	};
+	mpp@a300 { /* MPP 4 */
+		status = "okay";
+	};
+};
+
+/* ════════════════════════════════════════════════════════════════════════
+ *  11. Misc
+ *
+ *  - Battery temperature sensor (stock has it)
+ *  - Disable sdhc_2 (no SD card slot)
+ *  - Remove eMMC PM QoS (stock doesn't have it)
+ *  - Disable unused I2C buses and sensors that conflict with GPIOs
+ * ════════════════════════════════════════════════════════════════════════ */
+
+&soc {
+	qcom,msm-thermal {
+		qcom,sensor-information-10 {
+			qcom,sensor-type = "adc";
+			qcom,sensor-name = "battery";
+			qcom,scaling-factor = <1000>;
+		};
+	};
+};
+
+&sdhc_2 {
+	status = "disabled";
+};
+
+&sdhc_1 {
+	/delete-property/ qcom,pm-qos-irq-type;
+	/delete-property/ qcom,pm-qos-irq-latency;
+};
+
+/* Disable sensors that claim keypad GPIOs */
 &i2c_1 {
 	mpu6050@68 {
 		status = "disabled";
