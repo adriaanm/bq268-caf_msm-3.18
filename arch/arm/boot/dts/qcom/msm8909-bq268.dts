@@ -701,6 +701,58 @@
 	/delete-property/ qcom,pm-qos-irq-latency;
 };
 
+/* ════════════════════════════════════════════════════════════════════════
+ *  12. Camera — disabled
+ *
+ *  No camera hardware present.  Disable all camera infrastructure and
+ *  sensor nodes to avoid i2c probe timeouts on bus 78b7000 (~10s wasted
+ *  per sensor trying ov8858, ov2680, s5k3m2xm, ov5670, ov5695).
+ * ════════════════════════════════════════════════════════════════════════ */
+
+/* Disable camera sensor nodes from msm8909-camera-sensor-mtp.dtsi */
+&i2c_3 {
+	actuator0 {
+		status = "disabled";
+	};
+	eeprom0 {
+		status = "disabled";
+	};
+	led_flash0 {
+		status = "disabled";
+	};
+	qcom,camera@0 {
+		status = "disabled";
+	};
+	qcom_camera1: qcom,camera@1 {
+		status = "disabled";
+	};
+};
+
+/* Disable camera infrastructure from msm8909-camera.dtsi */
+&soc {
+	qcom,msm-cam@1800000 {
+		status = "disabled";
+	};
+	qcom,csiphy@1b0ac00 {
+		status = "disabled";
+	};
+	qcom,csid@1b08000 {
+		status = "disabled";
+	};
+	qcom,csid@1b08400 {
+		status = "disabled";
+	};
+	qcom,ispif@1b0a000 {
+		status = "disabled";
+	};
+	qcom,vfe@1b10000 {
+		status = "disabled";
+	};
+	qcom,irqrouter@1b00000 {
+		status = "disabled";
+	};
+};
+
 /* Disable sensors that claim keypad GPIOs */
 &i2c_1 {
 	mpu6050@68 {
