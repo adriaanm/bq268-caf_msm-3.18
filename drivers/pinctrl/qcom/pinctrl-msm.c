@@ -892,6 +892,35 @@ static int msm_gpio_init(struct msm_pinctrl *pctrl)
 
 	gpiochip_set_chained_irqchip(chip, &msm_gpio_irq_chip, pctrl->irq,
 				     msm_gpio_irq_handler);
+
+	/*
+	 * Clear any stale TLMM interrupt enable/status bits left by the
+	 * bootloader.  Drivers that need GPIO interrupts will re-enable
+	 * them via request_irq() -> msm_gpio_irq_unmask().  Without this,
+	 * orphaned hardware interrupts cause repeated handle_bad_irq dumps.
+	 */
+	{
+		int i;
+		const struct msm_pingroup *g;
+		u32 val;
+
+		for (i = 0; i < pctrl->soc->ngroups; i++) {
+			g = &pctrl->soc->groups[i];
+			if (!g->intr_cfg_reg)
+				continue;
+			/* Disable interrupt */
+			val = readl(pctrl->regs + g->intr_cfg_reg);
+			val &= ~BIT(g->intr_enable_bit);
+			writel(val, pctrl->regs + g->intr_cfg_reg);
+			/* Clear pending status */
+			val = readl(pctrl->regs + g->intr_status_reg);
+			if (val & BIT(g->intr_status_bit)) {
+				val &= ~BIT(g->intr_status_bit);
+				writel(val, pctrl->regs + g->intr_status_reg);
+			}
+		}
+	}
+
 	of_mpm_init();
 
 	return 0;
