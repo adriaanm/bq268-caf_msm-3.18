@@ -261,7 +261,8 @@ int is_ext_spk_gpio_support(struct platform_device *pdev,
 				__func__, pdata->spk_ext_pa_gpio);
 			return -EINVAL;
 		}
-		ret = gpio_request(pdata->spk_ext_pa_gpio, "ext_spk_pa");
+		ret = devm_gpio_request(&pdev->dev, pdata->spk_ext_pa_gpio,
+				"ext_spk_pa");
 		if (ret) {
 			pr_err("%s: gpio_request(%d) failed: %d\n",
 				__func__, pdata->spk_ext_pa_gpio, ret);
@@ -1221,7 +1222,7 @@ static int msm_mi2s_snd_startup(struct snd_pcm_substream *substream)
 	struct msm8916_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
 	int ret = 0, val = 0;
 
-	pr_debug("%s(): substream = %s  stream = %d\n", __func__,
+	pr_err("%s(): substream = %s  stream = %d\n", __func__,
 		 substream->name, substream->stream);
 
 	if (!q6core_is_adsp_ready()) {
