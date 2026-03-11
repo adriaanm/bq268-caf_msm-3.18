@@ -5618,17 +5618,19 @@ static int msm8x16_wcd_device_up(struct snd_soc_codec *codec)
 		msm8x16_wcd_bypass_on(codec);
 
 	msm8x16_wcd_configure_cap(codec, false, false);
-	wcd_mbhc_stop(&msm8x16_wcd_priv->mbhc);
-	wcd_mbhc_deinit(&msm8x16_wcd_priv->mbhc);
-	ret = wcd_mbhc_init(&msm8x16_wcd_priv->mbhc, codec, &mbhc_cb, &intr_ids,
-			wcd_mbhc_registers, true);
-	if (ret)
-		dev_err(codec->dev, "%s: mbhc initialization failed\n",
-			__func__);
-	else if (!of_property_read_bool(codec->component.card->dev->of_node,
-					"qcom,msm-mbhc-disable"))
-		wcd_mbhc_start(&msm8x16_wcd_priv->mbhc,
-			msm8x16_wcd_priv->mbhc.mbhc_cfg);
+	if (!of_property_read_bool(codec->component.card->dev->of_node,
+				   "qcom,msm-mbhc-disable")) {
+		wcd_mbhc_stop(&msm8x16_wcd_priv->mbhc);
+		wcd_mbhc_deinit(&msm8x16_wcd_priv->mbhc);
+		ret = wcd_mbhc_init(&msm8x16_wcd_priv->mbhc, codec, &mbhc_cb,
+				    &intr_ids, wcd_mbhc_registers, true);
+		if (ret)
+			dev_err(codec->dev,
+				"%s: mbhc initialization failed\n", __func__);
+		else
+			wcd_mbhc_start(&msm8x16_wcd_priv->mbhc,
+				msm8x16_wcd_priv->mbhc.mbhc_cfg);
+	}
 
 	mutex_unlock(&codec->mutex);
 
@@ -5880,8 +5882,10 @@ static int msm8x16_wcd_codec_probe(struct snd_soc_codec *codec)
 		return ret;
 	}
 
-	wcd_mbhc_init(&msm8x16_wcd_priv->mbhc, codec, &mbhc_cb, &intr_ids,
-		      wcd_mbhc_registers, true);
+	if (!of_property_read_bool(codec->component.card->dev->of_node,
+				   "qcom,msm-mbhc-disable"))
+		wcd_mbhc_init(&msm8x16_wcd_priv->mbhc, codec, &mbhc_cb,
+			      &intr_ids, wcd_mbhc_registers, true);
 
 	msm8x16_wcd_priv->mclk_enabled = false;
 	msm8x16_wcd_priv->clock_active = false;
