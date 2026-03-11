@@ -7,7 +7,8 @@ boot_dir := env("HOME") / "bq268/boot"
 defconfig := "bq268_defconfig"
 
 # kernel make with cross-compile defaults
-kmake := "make ARCH=arm CROSS_COMPILE=" + toolchain + " O=" + out
+# LOCALVERSION= suppresses the git "+" suffix so version magic matches stock (3.18.71-perf)
+kmake := "make ARCH=arm CROSS_COMPILE=" + toolchain + " O=" + out + " LOCALVERSION="
 
 # list recipes
 default:
@@ -54,9 +55,9 @@ dtb-diff dtb_stock="fdt_stock.dtb":
 dtb-dump file:
     uv run --with fdt python3 scripts/dtb_diff.py --dump {{file}}
 
-# show experiment log
+# show experiment log (bq268 commits only)
 experiments:
-    git log --oneline --notes=experiments --notes=tasks
+    git log --oneline --notes=experiments --notes=tasks 1ab88e529c5f..HEAD
 
 # clean build output
 clean:
