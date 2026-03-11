@@ -1,0 +1,6 @@
+# BQ268-specific service overrides
+# Imported from ramdisk init.rc to disable unwanted services
+
+on property:sys.boot_completed=1
+    stop vm_bms
+    stop qcamerasvr

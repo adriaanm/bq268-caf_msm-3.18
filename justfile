@@ -34,6 +34,10 @@ bootimg: build wifi
     cd {{out}}/ramdisk && gunzip -c {{boot_dir}}/ramdisk.gz | cpio -id 2>/dev/null
     mkdir -p {{out}}/ramdisk/vendor/lib/modules/pronto
     cp {{out}}/wlan.ko {{out}}/ramdisk/vendor/lib/modules/pronto/pronto_wlan.ko
+    # apply ramdisk overlay (init.rc fragments, etc.)
+    cp -r ramdisk-overlay/. {{out}}/ramdisk/
+    # import our rc if not already present
+    grep -q 'init.bq268.rc' {{out}}/ramdisk/init.rc || sed -i '/^import \/init\.${ro\.zygote}\.rc/a import /init.bq268.rc' {{out}}/ramdisk/init.rc
     cd {{out}}/ramdisk && find . | cpio -o -H newc 2>/dev/null | gzip > ../ramdisk-custom.gz
     python3 {{boot_dir}}/mkbootimg.py {{out}}/zImage-dtb {{out}}/ramdisk-custom.gz /dev/null {{out}}/boot.img
     @ls -lh {{out}}/boot.img
