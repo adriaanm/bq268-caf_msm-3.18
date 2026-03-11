@@ -1,7 +1,7 @@
 # BQ268 kernel build recipes
 # Run `just` to list available recipes, `just <recipe>` to run one.
 
-toolchain := "/opt/toolchains/gcc-linaro-4.8-2015.06-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-"
+toolchain := "/opt/toolchains/gcc-linaro-4.9.4-2017.01-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-"
 out := "output"
 boot_dir := env("HOME") / "bq268/boot"
 defconfig := "bq268_defconfig"
@@ -58,7 +58,7 @@ fastboot-flash: bootimg
     fastboot flash boot {{out}}/boot-$(git rev-parse --short HEAD).img
     fastboot reboot
 
-strip := "/opt/toolchains/gcc-linaro-4.8-2015.06-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-strip"
+strip := "/opt/toolchains/gcc-linaro-4.9.4-2017.01-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-strip"
 
 # build Prima WLAN module from source (submodule in prima/)
 wifi: defconfig
