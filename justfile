@@ -25,10 +25,17 @@ build: defconfig
     cp {{out}}/arch/arm/boot/dts/qcom/msm8909-bq268.dtb {{out}}/msm8909-bq268.dtb
     @ls -lh {{out}}/zImage {{out}}/msm8909-bq268.dtb
 
-# create boot.img (zImage with appended DTB + stock ramdisk)
-bootimg: build
+# create boot.img (zImage with appended DTB + ramdisk with wlan.ko)
+bootimg: build wifi
     cat {{out}}/zImage {{out}}/msm8909-bq268.dtb > {{out}}/zImage-dtb
-    python3 {{boot_dir}}/mkbootimg.py {{out}}/zImage-dtb {{boot_dir}}/ramdisk.gz /dev/null {{out}}/boot.img
+    # repack ramdisk with our wlan.ko
+    rm -rf {{out}}/ramdisk
+    mkdir -p {{out}}/ramdisk
+    cd {{out}}/ramdisk && gunzip -c {{boot_dir}}/ramdisk.gz | cpio -id 2>/dev/null
+    mkdir -p {{out}}/ramdisk/vendor/lib/modules/pronto
+    cp {{out}}/wlan.ko {{out}}/ramdisk/vendor/lib/modules/pronto/pronto_wlan.ko
+    cd {{out}}/ramdisk && find . | cpio -o -H newc 2>/dev/null | gzip > ../ramdisk-custom.gz
+    python3 {{boot_dir}}/mkbootimg.py {{out}}/zImage-dtb {{out}}/ramdisk-custom.gz /dev/null {{out}}/boot.img
     @ls -lh {{out}}/boot.img
 
 # flash boot image via fastboot (temporary, does not persist)
