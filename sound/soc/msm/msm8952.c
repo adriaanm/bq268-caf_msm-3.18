@@ -245,6 +245,7 @@ int is_ext_spk_gpio_support(struct platform_device *pdev,
 			struct msm8916_asoc_mach_data *pdata)
 {
 	const char *spk_ext_pa = "qcom,msm-spk-ext-pa";
+	int ret;
 
 	pr_debug("%s:Enter\n", __func__);
 
@@ -260,6 +261,15 @@ int is_ext_spk_gpio_support(struct platform_device *pdev,
 				__func__, pdata->spk_ext_pa_gpio);
 			return -EINVAL;
 		}
+		ret = gpio_request(pdata->spk_ext_pa_gpio, "ext_spk_pa");
+		if (ret) {
+			pr_err("%s: gpio_request(%d) failed: %d\n",
+				__func__, pdata->spk_ext_pa_gpio, ret);
+			return ret;
+		}
+		gpio_direction_output(pdata->spk_ext_pa_gpio, 0);
+		pr_info("%s: External Speaker PA gpio %d configured\n",
+			__func__, pdata->spk_ext_pa_gpio);
 	}
 	return 0;
 }
@@ -268,7 +278,6 @@ static int enable_spk_ext_pa(struct snd_soc_codec *codec, int enable)
 {
 	struct snd_soc_card *card = codec->component.card;
 	struct msm8916_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
-	int ret;
 
 	if (!gpio_is_valid(pdata->spk_ext_pa_gpio)) {
 		pr_err("%s: Invalid gpio: %d\n", __func__,
@@ -276,26 +285,10 @@ static int enable_spk_ext_pa(struct snd_soc_codec *codec, int enable)
 		return false;
 	}
 
-	pr_debug("%s: %s external speaker PA\n", __func__,
-		enable ? "Enable" : "Disable");
+	pr_info("%s: %s external speaker PA (gpio %d)\n", __func__,
+		enable ? "Enable" : "Disable", pdata->spk_ext_pa_gpio);
 
-	if (enable) {
-		ret = msm_gpioset_activate(CLIENT_WCD_INT, "ext_spk_gpio");
-		if (ret) {
-			pr_err("%s: gpio set cannot be de-activated %s\n",
-					__func__, "ext_spk_gpio");
-			return ret;
-		}
-		gpio_set_value_cansleep(pdata->spk_ext_pa_gpio, enable);
-	} else {
-		gpio_set_value_cansleep(pdata->spk_ext_pa_gpio, enable);
-		ret = msm_gpioset_suspend(CLIENT_WCD_INT, "ext_spk_gpio");
-		if (ret) {
-			pr_err("%s: gpio set cannot be de-activated %s\n",
-					__func__, "ext_spk_gpio");
-			return ret;
-		}
-	}
+	gpio_set_value_cansleep(pdata->spk_ext_pa_gpio, enable);
 	return 0;
 }
 
