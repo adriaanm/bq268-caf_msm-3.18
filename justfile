@@ -79,6 +79,47 @@ dtb-dump file:
 experiments:
     git log --oneline --notes=experiments --notes=tasks 1ab88e529c5f..HEAD
 
+# note an experiment outcome on HEAD (e.g. just note "FAILED: pstore — doesn't boot")
+note message:
+    git notes --ref=experiments append HEAD -m "{{message}}"
+
+# show current tasks
+tasks:
+    @git notes --ref=tasks show HEAD 2>/dev/null || echo "No tasks on HEAD"
+
+# add a task (e.g. just task-add "Fix IRQ 97 spam")
+task-add description:
+    #!/usr/bin/env bash
+    existing=$(git notes --ref=tasks show HEAD 2>/dev/null || true)
+    if [ -z "$existing" ]; then
+        git notes --ref=tasks add HEAD -m "[todo] {{description}}"
+    else
+        printf '%s\n[todo] %s' "$existing" "{{description}}" | git notes --ref=tasks add -f --stdin HEAD
+    fi
+
+# mark a task done (matches substring, e.g. just task-done "pstore")
+task-done pattern:
+    #!/usr/bin/env bash
+    existing=$(git notes --ref=tasks show HEAD 2>/dev/null || true)
+    if [ -z "$existing" ]; then
+        echo "No tasks on HEAD"; exit 1
+    fi
+    echo "$existing" | sed '/\[todo\].*{{pattern}}/s/\[todo\]/[done]/' | \
+        sed '/\[in_progress\].*{{pattern}}/s/\[in_progress\]/[done]/' | \
+        git notes --ref=tasks add -f --stdin HEAD
+    git notes --ref=tasks show HEAD
+
+# mark a task in-progress (matches substring)
+task-start pattern:
+    #!/usr/bin/env bash
+    existing=$(git notes --ref=tasks show HEAD 2>/dev/null || true)
+    if [ -z "$existing" ]; then
+        echo "No tasks on HEAD"; exit 1
+    fi
+    echo "$existing" | sed '/\[todo\].*{{pattern}}/s/\[todo\]/[in_progress]/' | \
+        git notes --ref=tasks add -f --stdin HEAD
+    git notes --ref=tasks show HEAD
+
 # clean build output
 clean:
     rm -rf {{out}}
