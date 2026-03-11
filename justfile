@@ -7,8 +7,7 @@ boot_dir := env("HOME") / "bq268/boot"
 defconfig := "bq268_defconfig"
 
 # kernel make with cross-compile defaults
-# LOCALVERSION= suppresses the git "+" suffix so version magic matches stock (3.18.71-perf)
-kmake := "make ARCH=arm CROSS_COMPILE=" + toolchain + " O=" + out + " LOCALVERSION="
+kmake := "make ARCH=arm CROSS_COMPILE=" + toolchain + " O=" + out
 
 # list recipes
 default:
