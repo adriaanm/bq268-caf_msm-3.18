@@ -47,6 +47,20 @@ fastboot-flash: bootimg
     fastboot flash boot {{out}}/boot.img
     fastboot reboot
 
+strip := "/opt/toolchains/gcc-linaro-4.8-2015.06-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-strip"
+
+# build Prima WLAN module from source (cloned in prima/)
+wifi: defconfig
+    {{kmake}} M={{justfile_directory()}}/prima WLAN_ROOT={{justfile_directory()}}/prima MODNAME=wlan CONFIG_PRONTO_WLAN=m modules
+    {{strip}} --strip-unneeded -o {{out}}/wlan.ko prima/wlan.ko
+    @ls -lh {{out}}/wlan.ko
+
+# push wlan.ko to device (replaces stock pronto_wlan.ko)
+wifi-push: wifi
+    adb push {{out}}/wlan.ko /data/local/tmp/wlan.ko
+    adb shell "su -c 'mount -o remount,rw /vendor && cp /data/local/tmp/wlan.ko /vendor/lib/modules/pronto/pronto_wlan.ko && chmod 644 /vendor/lib/modules/pronto/pronto_wlan.ko'"
+    @echo "Module pushed. Reboot to load."
+
 # compare built DTB against stock
 dtb-diff dtb_stock="fdt_stock.dtb":
     uv run --with fdt python3 scripts/dtb_diff.py {{dtb_stock}} {{out}}/msm8909-bq268.dtb
