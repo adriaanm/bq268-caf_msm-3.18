@@ -427,7 +427,6 @@ static int msm_nand_flash_read_id(struct msm_nand_info *info,
 	struct sps_iovec *iovec;
 	struct sps_iovec iovec_temp;
 	struct msm_nand_chip *chip = &info->nand_chip;
-	uint32_t total_cnt = 5;
 	/*
 	 * The following 5 commands are required to read id -
 	 * write commands - addr0, flash, exec
@@ -435,9 +434,9 @@ static int msm_nand_flash_read_id(struct msm_nand_info *info,
 	 */
 	struct {
 		struct sps_transfer xfer;
-		struct sps_iovec cmd_iovec[total_cnt];
-		struct msm_nand_sps_cmd cmd[total_cnt];
-		uint32_t data[total_cnt];
+		struct sps_iovec cmd_iovec[5];
+		struct msm_nand_sps_cmd cmd[5];
+		uint32_t data[5];
 	} *dma_buffer;
 
 	wait_event(chip->dma_wait_queue, (dma_buffer = msm_nand_get_dma_buffer
@@ -671,17 +670,16 @@ static int msm_nand_flash_onfi_probe(struct msm_nand_info *info)
 	struct msm_nand_flash_onfi_data data;
 	uint32_t onfi_signature = 0;
 
-	/* SPS command/data descriptors */
-	uint32_t total_cnt = 9;
 	/*
 	 * The following 9 commands are required to get onfi parameters -
 	 * flash, addr0, addr1, cfg0, cfg1, dev0_ecc_cfg,
 	 * read_loc_0, exec, flash_status (read cmd).
 	 */
+	/* SPS command/data descriptors */
 	struct {
 		struct sps_transfer xfer;
-		struct sps_iovec cmd_iovec[total_cnt];
-		struct msm_nand_sps_cmd cmd[total_cnt];
+		struct sps_iovec cmd_iovec[9];
+		struct msm_nand_sps_cmd cmd[9];
 		uint32_t flash_status;
 	} *dma_buffer;
 
@@ -1384,22 +1382,22 @@ static int msm_nand_is_erased_page(struct mtd_info *mtd, loff_t from,
 	 * be sent for every CW - flash, read_location_0, read_location_1,
 	 * exec, flash_status and buffer_status.
 	 */
-	uint32_t desc_needed = 2 * cwperpage;
+
 	struct msm_nand_rw_cmd_desc *cmd_list = NULL;
 	uint32_t cw_desc_cnt = 0;
 	struct {
 		struct sps_transfer xfer;
-		struct sps_iovec cmd_iovec[desc_needed];
+		struct sps_iovec cmd_iovec[MAX_DESC_PER_PAGE];
 		struct {
 			uint32_t count;
 			struct msm_nand_cmd_setup_desc setup_desc;
-			struct msm_nand_cmd_cw_desc cw_desc[desc_needed - 1];
+			struct msm_nand_cmd_cw_desc cw_desc[MAX_DESC_PER_PAGE - 1];
 		} cmd_list;
 		struct {
 			uint32_t flash_status;
 			uint32_t buffer_status;
 			uint32_t erased_cw_status;
-		} result[cwperpage];
+		} result[MAX_CW_PER_PAGE];
 	} *dma_buffer;
 	uint8_t *ecc;
 
@@ -1607,20 +1605,20 @@ static int msm_nand_read_oob(struct mtd_info *mtd, loff_t from,
 	 * be sent for every CW - flash, read_location_0, read_location_1,
 	 * exec, flash_status and buffer_status.
 	 */
-	uint32_t desc_needed = 2 * cwperpage;
+
 	struct {
 		struct sps_transfer xfer;
-		struct sps_iovec cmd_iovec[desc_needed];
+		struct sps_iovec cmd_iovec[MAX_DESC_PER_PAGE];
 		struct {
 			uint32_t count;
 			struct msm_nand_cmd_setup_desc setup_desc;
-			struct msm_nand_cmd_cw_desc cw_desc[desc_needed - 1];
+			struct msm_nand_cmd_cw_desc cw_desc[MAX_DESC_PER_PAGE - 1];
 		} cmd_list;
 		struct {
 			uint32_t flash_status;
 			uint32_t buffer_status;
 			uint32_t erased_cw_status;
-		} result[cwperpage];
+		} result[MAX_CW_PER_PAGE];
 	} *dma_buffer;
 	struct msm_nand_rw_cmd_desc *cmd_list = NULL;
 
@@ -2160,18 +2158,18 @@ static int msm_nand_write_oob(struct mtd_info *mtd, loff_t to,
 	 * The following 4 commands will be sent for every CW :
 	 * flash, exec, flash_status (read), flash_status (write).
 	 */
-	uint32_t desc_needed = 2 * cwperpage;
+
 	struct {
 		struct sps_transfer xfer;
-		struct sps_iovec cmd_iovec[desc_needed + 1];
+		struct sps_iovec cmd_iovec[MAX_DESC_PER_PAGE + 1];
 		struct {
 			uint32_t count;
 			struct msm_nand_cmd_setup_desc setup_desc;
-			struct msm_nand_cmd_cw_desc cw_desc[desc_needed];
+			struct msm_nand_cmd_cw_desc cw_desc[MAX_DESC_PER_PAGE];
 		} cmd_list;
 		struct {
 			uint32_t flash_status;
-		} data[cwperpage];
+		} data[MAX_CW_PER_PAGE];
 	} *dma_buffer;
 	struct msm_nand_rw_cmd_desc *cmd_list = NULL;
 
@@ -2446,7 +2444,6 @@ static int msm_nand_erase(struct mtd_info *mtd, struct erase_info *instr)
 	struct msm_nand_erase_reg_data data;
 	struct sps_iovec *iovec;
 	struct sps_iovec iovec_temp;
-	uint32_t total_cnt = 9;
 	/*
 	 * The following 9 commands are required to erase a page -
 	 * flash, addr0, addr1, cfg0, cfg1, exec, flash_status(read),
@@ -2454,8 +2451,8 @@ static int msm_nand_erase(struct mtd_info *mtd, struct erase_info *instr)
 	 */
 	struct {
 		struct sps_transfer xfer;
-		struct sps_iovec cmd_iovec[total_cnt];
-		struct msm_nand_sps_cmd cmd[total_cnt];
+		struct sps_iovec cmd_iovec[9];
+		struct msm_nand_sps_cmd cmd[9];
 		uint32_t flash_status;
 	} *dma_buffer;
 
@@ -2604,7 +2601,6 @@ static int msm_nand_block_isbad(struct mtd_info *mtd, loff_t ofs)
 	struct msm_nand_blk_isbad_data data;
 	struct sps_iovec *iovec;
 	struct sps_iovec iovec_temp;
-	uint32_t total_cnt = 9;
 	/*
 	 * The following 9 commands are required to check bad block -
 	 * flash, addr0, addr1, cfg0, cfg1, ecc_cfg, read_loc_0,
@@ -2612,8 +2608,8 @@ static int msm_nand_block_isbad(struct mtd_info *mtd, loff_t ofs)
 	 */
 	struct {
 		struct sps_transfer xfer;
-		struct sps_iovec cmd_iovec[total_cnt];
-		struct msm_nand_sps_cmd cmd[total_cnt];
+		struct sps_iovec cmd_iovec[9];
+		struct msm_nand_sps_cmd cmd[9];
 		uint32_t flash_status;
 	} *dma_buffer;
 

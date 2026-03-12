@@ -16,25 +16,18 @@ Every kernel change that will be flashed MUST follow this discipline:
    - `BOOT TEST: PASS` — device boots successfully
    - `BOOT TEST: FAIL (description)` — device did not boot, with brief failure description
    - `BOOT TEST: PARTIAL (description)` — boots but with issues
-4. **Update git notes** — record experiment details on the commit:
-   ```bash
-   git notes --ref=experiments add -m "experiment: ...
-   hypothesis: ...
-   outcome: ..." <sha>
-   ```
+4. **Record experiment** — `just note "PASS: description"` (records on HEAD)
 
-## Git Notes
+## Tasks & Experiments — ALWAYS use `just` recipes
 
-We use two note namespaces for out-of-band tracking:
+**IMPORTANT: Never use raw `git notes` commands.** Always use the `just` recipes:
 
-- **`experiments`** — boot test log attached to the commit that was flashed
-- **`tasks`** — lightweight task tracking attached to HEAD
-
-View: `just experiments` or `git log --oneline --notes=experiments --notes=tasks`
-
-Update experiment outcome: `git notes --ref=experiments edit <sha>`
-
-Update tasks: `git notes --ref=tasks edit HEAD`
+- **`just tasks`** — show current tasks
+- **`just task-add "description"`** — add a new task
+- **`just task-start "pattern"`** — mark a task in-progress
+- **`just task-done "pattern"`** — mark a task done
+- **`just experiments`** — show experiment log
+- **`just note "message"`** — record an experiment outcome on HEAD
 
 ## Known Issues
 

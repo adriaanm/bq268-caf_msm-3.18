@@ -2,12 +2,17 @@
 # Run `just` to list available recipes, `just <recipe>` to run one.
 
 toolchain := "/opt/toolchains/gcc-linaro-4.9.4-2017.01-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-"
+clang := "clang-14 --target=arm-linux-gnueabihf --prefix=" + toolchain + " --gcc-toolchain=/opt/toolchains/gcc-linaro-4.9.4-2017.01-x86_64_arm-linux-gnueabihf -fno-integrated-as"
+clang-kcflags := "-gdwarf-2 -Wno-unused-variable -fno-builtin-stpcpy"
 out := "output"
 boot_dir := env("HOME") / "bq268/boot"
 defconfig := "bq268_defconfig"
 
-# kernel make with cross-compile defaults
-kmake := "make ARCH=arm CROSS_COMPILE=" + toolchain + " O=" + out
+# kernel make with clang (default)
+kmake := "make ARCH=arm CROSS_COMPILE=" + toolchain + " CC='" + clang + "' REAL_CC='" + clang + "' KCFLAGS='" + clang-kcflags + "' O=" + out
+
+# kernel make with gcc (fallback)
+kmake-gcc := "make ARCH=arm CROSS_COMPILE=" + toolchain + " O=" + out
 
 # list recipes
 default:
@@ -25,6 +30,13 @@ build: defconfig
     cp {{out}}/arch/arm/boot/dts/qcom/msm8909-bq268.dtb {{out}}/msm8909-bq268.dtb
     @ls -lh {{out}}/zImage {{out}}/msm8909-bq268.dtb
 
+# build kernel with GCC instead of Clang
+build-gcc: defconfig
+    {{kmake-gcc}} -j$(nproc) zImage dtbs 2>&1 | tee {{out}}/build.log
+    cp {{out}}/arch/arm/boot/zImage {{out}}/zImage
+    cp {{out}}/arch/arm/boot/dts/qcom/msm8909-bq268.dtb {{out}}/msm8909-bq268.dtb
+    @ls -lh {{out}}/zImage {{out}}/msm8909-bq268.dtb
+
 # create boot.img (zImage with appended DTB + ramdisk with wlan.ko)
 bootimg: build wifi
     cat {{out}}/zImage {{out}}/msm8909-bq268.dtb > {{out}}/zImage-dtb
@@ -32,8 +44,8 @@ bootimg: build wifi
     rm -rf {{out}}/ramdisk
     mkdir -p {{out}}/ramdisk
     cd {{out}}/ramdisk && gunzip -c {{boot_dir}}/ramdisk.gz | cpio -id 2>/dev/null
-    mkdir -p {{out}}/ramdisk/vendor/lib/modules/pronto
-    cp {{out}}/wlan.ko {{out}}/ramdisk/vendor/lib/modules/pronto/pronto_wlan.ko
+    mkdir -p {{out}}/ramdisk/lib/modules
+    cp {{out}}/wlan.ko {{out}}/ramdisk/lib/modules/pronto_wlan.ko
     # apply ramdisk overlay (init.rc fragments, etc.)
     cp -r ramdisk-overlay/. {{out}}/ramdisk/
     # import our rc if not already present
@@ -62,7 +74,7 @@ strip := "/opt/toolchains/gcc-linaro-4.9.4-2017.01-x86_64_arm-linux-gnueabihf/bi
 
 # build Prima WLAN module from source (submodule in prima/)
 wifi: defconfig
-    {{kmake}} M={{justfile_directory()}}/prima WLAN_ROOT={{justfile_directory()}}/prima MODNAME=wlan CONFIG_PRONTO_WLAN=m KCFLAGS=-Wno-unused-variable modules
+    {{kmake}} M={{justfile_directory()}}/prima WLAN_ROOT={{justfile_directory()}}/prima MODNAME=wlan CONFIG_PRONTO_WLAN=m modules
     {{strip}} --strip-unneeded -o {{out}}/wlan.ko prima/wlan.ko
     @ls -lh {{out}}/wlan.ko
 

@@ -1,5 +1,9 @@
-# BQ268-specific service overrides
-# Imported from ramdisk init.rc to disable unwanted services
+# BQ268-specific overrides
+# Imported from ramdisk init.rc
+
+# Load our rebuilt wlan module before wifi HAL starts
+on boot
+    insmod /lib/modules/pronto_wlan.ko
 
 on property:sys.boot_completed=1
     stop vm_bms

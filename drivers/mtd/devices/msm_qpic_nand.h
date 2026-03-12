@@ -40,6 +40,8 @@
 
 #define PAGE_SIZE_2K 2048
 #define PAGE_SIZE_4K 4096
+#define MAX_CW_PER_PAGE (PAGE_SIZE_4K >> 9)
+#define MAX_DESC_PER_PAGE (2 * MAX_CW_PER_PAGE)
 
 #undef WRITE /* To avoid redefinition in above header files */
 #define WRITE 1
