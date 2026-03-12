@@ -50,8 +50,7 @@ wifi-clang: defconfig
     {{strip}} --strip-unneeded -o {{out}}/wlan.ko prima/wlan.ko
     @ls -lh {{out}}/wlan.ko
 
-# assemble boot.img from kernel + ramdisk + wlan.ko
-[private]
+# assemble boot.img from existing build artifacts (skip rebuild)
 bootimg-assemble:
     cat {{out}}/zImage {{out}}/msm8909-bq268.dtb > {{out}}/zImage-dtb
     rm -rf {{out}}/ramdisk
@@ -59,6 +58,8 @@ bootimg-assemble:
     cd {{out}}/ramdisk && gunzip -c {{justfile_directory()}}/{{stock_ramdisk}} | cpio -id 2>/dev/null
     mkdir -p {{out}}/ramdisk/lib/modules
     cp {{out}}/wlan.ko {{out}}/ramdisk/lib/modules/pronto_wlan.ko
+    # remove symlinks that the overlay replaces with real files
+    cd {{out}}/ramdisk && find {{justfile_directory()}}/ramdisk-overlay -type f -printf '%P\n' | xargs -I{} rm -f {}
     cp -r ramdisk-overlay/. {{out}}/ramdisk/
     grep -q 'init.bq268.rc' {{out}}/ramdisk/init.rc || sed -i '/^import \/init\.${ro\.zygote}\.rc/a import /init.bq268.rc' {{out}}/ramdisk/init.rc
     cd {{out}}/ramdisk && find . | cpio -o -H newc 2>/dev/null | gzip > ../ramdisk-custom.gz

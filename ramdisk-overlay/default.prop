@@ -1,0 +1,8 @@
+#
+# BQ268 default properties — root enabled, no /system dependency
+#
+ro.secure=0
+ro.adb.secure=0
+ro.debuggable=1
+persist.sys.usb.config=adb
+ro.hardware=qcom
