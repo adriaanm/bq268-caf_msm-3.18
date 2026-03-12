@@ -29,6 +29,17 @@ Every kernel change that will be flashed MUST follow this discipline:
 - **`just experiments`** — show experiment log
 - **`just note "message"`** — record an experiment outcome on HEAD
 
+## Toolchain Status
+
+We are migrating from GCC 4.9.4 to Clang 14. **Only GCC builds boot right now.** The Clang-built kernel does not boot (unknown cause — pstore is now enabled to capture crash logs from Clang boots).
+
+- `just bootimg` — builds with GCC (working)
+- `just build` — builds with Clang (does NOT boot yet)
+- `just build-gcc` — builds with GCC explicitly
+
+Always use GCC (`bootimg` / `build-gcc`) for images you intend to flash, until the Clang boot issue is resolved.
+
 ## Known Issues
 
 - MBHC disable via kernel code (`of_property_read_bool` in msm8952.c) crashes on boot — likely GCC 4.8 miscompilation. Need alternative approach.
+- Clang-built kernel doesn't boot — need to capture pstore crash log to diagnose.
