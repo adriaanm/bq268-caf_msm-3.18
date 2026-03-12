@@ -7,6 +7,7 @@ clang-kcflags := "-gdwarf-2 -Wno-unused-variable -fno-builtin-stpcpy"
 out := "output"
 boot_dir := env("HOME") / "bq268/boot"
 defconfig := "bq268_defconfig"
+cmdline := "androidboot.hardware=qcom ramoops.mem_address=0x9ff00000 ramoops.mem_size=0x40000 ramoops.console_size=0x20000 ramoops.record_size=0x10000 ramoops.pmsg_size=0x10000"
 
 # kernel make with clang (default)
 kmake := "make ARCH=arm CROSS_COMPILE=" + toolchain + " CC='" + clang + "' REAL_CC='" + clang + "' KCFLAGS='" + clang-kcflags + "' O=" + out
@@ -51,7 +52,7 @@ bootimg: build wifi
     # import our rc if not already present
     grep -q 'init.bq268.rc' {{out}}/ramdisk/init.rc || sed -i '/^import \/init\.${ro\.zygote}\.rc/a import /init.bq268.rc' {{out}}/ramdisk/init.rc
     cd {{out}}/ramdisk && find . | cpio -o -H newc 2>/dev/null | gzip > ../ramdisk-custom.gz
-    python3 {{boot_dir}}/mkbootimg.py {{out}}/zImage-dtb {{out}}/ramdisk-custom.gz /dev/null {{out}}/boot.img
+    python3 {{boot_dir}}/mkbootimg.py {{out}}/zImage-dtb {{out}}/ramdisk-custom.gz /dev/null {{out}}/boot.img "{{cmdline}}"
     cp {{out}}/boot.img {{out}}/boot-$(git rev-parse --short HEAD).img
     @ls -lh {{out}}/boot-$(git rev-parse --short HEAD).img
 

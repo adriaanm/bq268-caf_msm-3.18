@@ -45,6 +45,7 @@
 		size = <0x0 0xc00000>;
 		linux,cma-default;
 	};
+
 };
 
 &modem_adsp_mem {
