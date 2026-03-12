@@ -1,7 +1,11 @@
 # BQ268-specific overrides
 # Imported from ramdisk init.rc
 
-# Load our rebuilt wlan module before wifi HAL starts
+on early-init
+    # Force ADB on — persist partition may have usb.config=none
+    setprop persist.sys.usb.config adb
+    setprop ro.adb.secure 0
+
 on boot
     insmod /lib/modules/pronto_wlan.ko
 
