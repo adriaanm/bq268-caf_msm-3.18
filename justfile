@@ -12,8 +12,8 @@ defconfig := "bq268_defconfig"
 cmdline := "androidboot.hardware=qcom msm_rtb.filter=0x237 ehci-hcd.park=3 androidboot.bootdevice=7824900.sdhci lpm_levels.sleep_disabled=1 androidboot.memcg=true earlyprintk panic=5 ramoops.mem_address=0x9ff00000 ramoops.mem_size=0x40000 ramoops.console_size=0x20000 ramoops.record_size=0x10000 ramoops.pmsg_size=0x10000"
 
 # kernel make commands
+kmake := "make ARCH=arm CROSS_COMPILE=" + toolchain + " O=" + out
 kmake-clang := "make ARCH=arm CROSS_COMPILE=" + toolchain + " CC='" + clang + "' REAL_CC='" + clang + "' KCFLAGS='" + clang-kcflags + "' O=" + out
-kmake-gcc := "make ARCH=arm CROSS_COMPILE=" + toolchain + " O=" + out
 
 # list recipes
 default:
@@ -22,29 +22,29 @@ default:
 # configure kernel from defconfig
 defconfig:
     mkdir -p {{out}}
-    {{kmake-gcc}} {{defconfig}}
+    {{kmake}} {{defconfig}}
 
-# build kernel with GCC
-build-gcc: defconfig
-    {{kmake-gcc}} -j$(nproc) zImage dtbs 2>&1 | tee {{out}}/build.log
+# build kernel zImage and device tree blobs
+build: defconfig
+    {{kmake}} -j$(nproc) zImage dtbs 2>&1 | tee {{out}}/build.log
     cp {{out}}/arch/arm/boot/zImage {{out}}/zImage
     cp {{out}}/arch/arm/boot/dts/qcom/msm8909-bq268.dtb {{out}}/msm8909-bq268.dtb
     @ls -lh {{out}}/zImage {{out}}/msm8909-bq268.dtb
 
-# build kernel with Clang
+# build kernel with Clang (BROKEN: compiles but doesn't boot)
 build-clang: defconfig
     {{kmake-clang}} -j$(nproc) zImage dtbs 2>&1 | tee {{out}}/build.log
     cp {{out}}/arch/arm/boot/zImage {{out}}/zImage
     cp {{out}}/arch/arm/boot/dts/qcom/msm8909-bq268.dtb {{out}}/msm8909-bq268.dtb
     @ls -lh {{out}}/zImage {{out}}/msm8909-bq268.dtb
 
-# build Prima WLAN module (GCC)
-wifi-gcc: defconfig
-    {{kmake-gcc}} KCFLAGS='-Wno-unused-variable' M={{justfile_directory()}}/prima WLAN_ROOT={{justfile_directory()}}/prima MODNAME=wlan CONFIG_PRONTO_WLAN=m modules
+# build Prima WLAN module
+wifi: defconfig
+    {{kmake}} KCFLAGS='-Wno-unused-variable' M={{justfile_directory()}}/prima WLAN_ROOT={{justfile_directory()}}/prima MODNAME=wlan CONFIG_PRONTO_WLAN=m modules
     {{strip}} --strip-unneeded -o {{out}}/wlan.ko prima/wlan.ko
     @ls -lh {{out}}/wlan.ko
 
-# build Prima WLAN module (Clang)
+# build Prima WLAN module with Clang (BROKEN: see build-clang)
 wifi-clang: defconfig
     {{kmake-clang}} M={{justfile_directory()}}/prima WLAN_ROOT={{justfile_directory()}}/prima MODNAME=wlan CONFIG_PRONTO_WLAN=m modules
     {{strip}} --strip-unneeded -o {{out}}/wlan.ko prima/wlan.ko
@@ -52,7 +52,7 @@ wifi-clang: defconfig
 
 # assemble boot.img from kernel + ramdisk + wlan.ko
 [private]
-bootimg-assemble tc:
+bootimg-assemble:
     cat {{out}}/zImage {{out}}/msm8909-bq268.dtb > {{out}}/zImage-dtb
     rm -rf {{out}}/ramdisk
     mkdir -p {{out}}/ramdisk
@@ -63,32 +63,32 @@ bootimg-assemble tc:
     grep -q 'init.bq268.rc' {{out}}/ramdisk/init.rc || sed -i '/^import \/init\.${ro\.zygote}\.rc/a import /init.bq268.rc' {{out}}/ramdisk/init.rc
     cd {{out}}/ramdisk && find . | cpio -o -H newc 2>/dev/null | gzip > ../ramdisk-custom.gz
     python3 {{mkbootimg}} {{out}}/zImage-dtb {{out}}/ramdisk-custom.gz /dev/null {{out}}/boot.img "{{cmdline}}"
-    cp {{out}}/boot.img {{out}}/boot-$(git rev-parse --short HEAD)-{{tc}}.img
-    @ls -lh {{out}}/boot-$(git rev-parse --short HEAD)-{{tc}}.img
+    cp {{out}}/boot.img {{out}}/boot-$(git rev-parse --short HEAD).img
+    @ls -lh {{out}}/boot-$(git rev-parse --short HEAD).img
 
-# create boot.img with GCC kernel
-bootimg-gcc: build-gcc wifi-gcc (bootimg-assemble "gcc")
+# create boot.img
+bootimg: build wifi bootimg-assemble
 
-# create boot.img with Clang kernel
-bootimg-clang: build-clang wifi-clang (bootimg-assemble "clang")
+# create boot.img with Clang (BROKEN: see build-clang)
+bootimg-clang: build-clang wifi-clang bootimg-assemble
 
 # flash boot image via fastboot (temporary, does not persist)
-fastboot-boot tc:
+fastboot-boot: bootimg
     adb reboot bootloader
     @echo "Waiting for fastboot..."
     fastboot wait-for-device
-    fastboot boot {{out}}/boot-$(git rev-parse --short HEAD)-{{tc}}.img
+    fastboot boot {{out}}/boot-$(git rev-parse --short HEAD).img
 
 # flash boot image permanently
-fastboot-flash tc:
+fastboot-flash: bootimg
     adb reboot bootloader
     @echo "Waiting for fastboot..."
     fastboot wait-for-device
-    fastboot flash boot {{out}}/boot-$(git rev-parse --short HEAD)-{{tc}}.img
+    fastboot flash boot {{out}}/boot-$(git rev-parse --short HEAD).img
     fastboot reboot
 
 # push wlan.ko to device (replaces stock pronto_wlan.ko)
-wifi-push: wifi-gcc
+wifi-push: wifi
     adb push {{out}}/wlan.ko /data/local/tmp/wlan.ko
     adb shell "su -c 'mount -o remount,rw /vendor && cp /data/local/tmp/wlan.ko /vendor/lib/modules/pronto/pronto_wlan.ko && chmod 644 /vendor/lib/modules/pronto/pronto_wlan.ko'"
     @echo "Module pushed. Reboot to load."
