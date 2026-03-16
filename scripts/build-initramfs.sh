@@ -48,7 +48,7 @@ for applet in sh ash ls cat echo mkdir mount umount sleep \
     devmem hexdump dd free uptime hostname \
     find xargs printf test expr seq \
     tar gzip gunzip df du stat id whoami \
-    setsid; do
+    setsid cttyhack getty login; do
     ln -sf busybox "$INITRAMFS/bin/$applet"
 done
 
@@ -59,6 +59,9 @@ chmod 755 "$INITRAMFS/init"
 # dump-registers script
 cp "$ROOTFS_SRC/dump-registers.sh" "$INITRAMFS/usr/bin/dump-registers"
 chmod 755 "$INITRAMFS/usr/bin/dump-registers"
+
+# /etc/inittab
+cp "$ROOTFS_SRC/etc/inittab" "$INITRAMFS/etc/inittab"
 
 # Minimal /etc
 cat > "$INITRAMFS/etc/profile" << 'EOF'

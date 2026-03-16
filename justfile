@@ -5,7 +5,7 @@ toolchain := "/opt/toolchains/gcc-linaro-4.9.4-2017.01-x86_64_arm-linux-gnueabih
 out := "output"
 mkbootimg := "tools/mkbootimg/mkbootimg.py"
 defconfig := "bq268_defconfig"
-cmdline := "console=ttyHSL0,115200 console=ttyGS0 rdinit=/init earlyprintk panic=5 ramoops.mem_address=0x9ff00000 ramoops.mem_size=0x40000 ramoops.console_size=0x20000 ramoops.record_size=0x10000 ramoops.pmsg_size=0x10000"
+cmdline := "androidboot.hardware=qcom msm_rtb.filter=0x237 ehci-hcd.park=3 androidboot.bootdevice=7824900.sdhci lpm_levels.sleep_disabled=1 earlyprintk panic=5 ramoops.mem_address=0x9ff00000 ramoops.mem_size=0x40000 ramoops.console_size=0x20000 ramoops.record_size=0x10000 ramoops.pmsg_size=0x10000 console=ttyHSL0,115200 rdinit=/init"
 
 kmake := "make ARCH=arm CROSS_COMPILE=" + toolchain + " O=" + out
 

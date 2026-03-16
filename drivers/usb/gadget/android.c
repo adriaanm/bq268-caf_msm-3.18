@@ -767,7 +767,7 @@ static void functionfs_closed_callback(struct ffs_data *ffs)
 }
 
 /* ACM */
-static char acm_transports[32];	/*enabled ACM ports - "tty[,sdio]"*/
+static char acm_transports[32] = "tty";	/*enabled ACM ports - "tty[,sdio]"*/
 #define MAX_ACM_INSTANCES 4
 struct acm_function_config {
 	int instances;
