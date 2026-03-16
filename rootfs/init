@@ -1,0 +1,60 @@
+#!/bin/sh
+# Minimal init for CAF 3.18 register dump comparison
+# Console: USB ACM serial (/dev/ttyGS0) via android_usb gadget
+
+mount -t proc proc /proc
+mount -t sysfs sys /sys
+mount -t devtmpfs dev /dev
+mkdir -p /dev/pts
+mount -t devpts devpts /dev/pts
+mount -t debugfs debugfs /sys/kernel/debug 2>/dev/null
+mount -t tmpfs tmpfs /tmp
+
+hostname bq268-caf
+
+echo ""
+echo "========================================"
+echo " CAF 3.18 minimal Linux — BQ268"
+echo " Register dump: /usr/bin/dump-registers"
+echo "========================================"
+echo ""
+
+# LED indicator: green on = booted
+echo 255 > /sys/class/leds/green/brightness 2>/dev/null
+
+# Configure android_usb gadget with ACM serial function
+USB=/sys/class/android_usb/android0
+if [ -d "$USB" ]; then
+    echo 0 > $USB/enable
+    echo 1d6b > $USB/idVendor     # Linux Foundation
+    echo 0104 > $USB/idProduct    # Multifunction Composite Gadget
+    echo "BQ268" > $USB/iProduct
+    echo "UdoTech" > $USB/iManufacturer
+    echo "tty" > $USB/f_acm/acm_transports
+    echo acm > $USB/functions
+    echo 1 > $USB/enable
+    echo "USB ACM gadget enabled"
+else
+    echo "WARNING: android_usb sysfs not found"
+fi
+
+# Wait for USB gadget to enumerate
+sleep 2
+
+# Spawn shell on USB serial gadget
+if [ -e /dev/ttyGS0 ]; then
+    echo "Starting console on /dev/ttyGS0"
+    setsid sh -c 'exec sh -l </dev/ttyGS0 >/dev/ttyGS0 2>&1' &
+fi
+
+# Spawn shell on UART (fallback)
+if [ -e /dev/ttyHSL0 ]; then
+    echo "Starting console on /dev/ttyHSL0"
+    setsid sh -c 'exec sh -l </dev/ttyHSL0 >/dev/ttyHSL0 2>&1' &
+fi
+
+# Keep init alive
+echo "Init done, consoles spawned"
+while true; do
+    sleep 3600
+done
