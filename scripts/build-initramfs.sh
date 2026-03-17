@@ -51,7 +51,8 @@ echo "Creating busybox applet symlinks..."
 for applet in sh ash ls cat echo mkdir mount umount sleep \
     cp mv rm ln chmod chown grep sed awk cut head tail \
     ps kill dmesg reboot poweroff halt \
-    ifconfig ip route ping \
+    ifconfig ip route ping iw wpa_supplicant \
+    insmod rmmod lsmod modprobe modinfo \
     vi less more wc sort uniq tr tee \
     devmem hexdump dd free uptime hostname \
     find xargs printf test expr seq \
@@ -71,6 +72,12 @@ chmod 755 "$INITRAMFS/usr/bin/dump-registers"
 # reboot-bootloader (pre-compiled static binary)
 cp "$ROOT_DIR/tools/reboot-bootloader" "$INITRAMFS/sbin/reboot-bootloader"
 chmod 755 "$INITRAMFS/sbin/reboot-bootloader"
+
+# WiFi module
+if [ -f "$ROOT_DIR/prima/wlan.ko" ]; then
+    cp "$ROOT_DIR/prima/wlan.ko" "$INITRAMFS/lib/modules/wlan.ko"
+    echo "Included wlan.ko ($(du -h "$ROOT_DIR/prima/wlan.ko" | cut -f1))"
+fi
 
 # /etc/inittab
 cp "$ROOTFS_SRC/etc/inittab" "$INITRAMFS/etc/inittab"

@@ -16,6 +16,38 @@ hostname bq268-caf
 # LED indicator: green on = init reached
 echo 255 > /sys/class/leds/green/brightness 2>/dev/null
 
+# Mount firmware partitions for WCNSS WiFi + modem
+mkdir -p /lib/firmware /mnt/modem /mnt/persist
+mount -t vfat -o ro /dev/mmcblk0p1 /mnt/modem 2>/dev/null
+mount -t ext4 -o ro /dev/mmcblk0p7 /mnt/persist 2>/dev/null
+
+# Symlink PIL firmware segments (wcnss.mdt, wcnss.b*)
+if [ -d /mnt/modem/image ]; then
+    ln -sf /mnt/modem/image/wcnss.mdt /lib/firmware/wcnss.mdt
+    for f in /mnt/modem/image/wcnss.b*; do
+        ln -sf "$f" /lib/firmware/$(basename "$f")
+    done
+fi
+
+# WiFi NV calibration + config
+mkdir -p /lib/firmware/wlan/prima
+if [ -f /mnt/persist/WCNSS_qcom_wlan_nv.bin ]; then
+    ln -sf /mnt/persist/WCNSS_qcom_wlan_nv.bin /lib/firmware/wlan/prima/
+fi
+if [ -f /mnt/persist/WCNSS_wlan_dictionary.dat ]; then
+    ln -sf /mnt/persist/WCNSS_wlan_dictionary.dat /lib/firmware/
+fi
+
+# Mount system for WCNSS_cfg.dat
+mkdir -p /mnt/system
+mount -t ext4 -o ro /dev/mmcblk0p6 /mnt/system 2>/dev/null
+if [ -f /mnt/system/etc/firmware/wlan/prima/WCNSS_cfg.dat ]; then
+    ln -sf /mnt/system/etc/firmware/wlan/prima/WCNSS_cfg.dat /lib/firmware/wlan/prima/
+fi
+
+# WiFi: firmware symlinks are set up above; WCNSS trigger + insmod
+# wlan.ko is handled by the Alpine rootfs init on userdata (p36)
+
 # Enable android_usb with ACM function
 # acm_transports is pre-set to "tty" in kernel, just enable
 USB=/sys/class/android_usb/android0
