@@ -17,19 +17,51 @@ if [ ! -e "$TTY" ]; then
     exit 1
 fi
 
-# Configure port
-stty -F "$TTY" 115200 raw -echo -echoe -echok -onlcr 2>/dev/null
+exec python3 -c "
+import os, termios, time, select, sys
 
-# Drain stale input
-timeout 0.3 cat "$TTY" > /dev/null 2>&1 || true
-
-# Start background reader
-timeout "$TIMEOUT" cat "$TTY" &
-READER=$!
-sleep 0.3
+fd = os.open('$TTY', os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+attrs = termios.tcgetattr(fd)
+attrs[4] = attrs[5] = termios.B115200
+attrs[0] = 0
+attrs[1] = 0
+attrs[2] = termios.CS8 | termios.CREAD | termios.CLOCAL
+attrs[3] = 0
+attrs[6][termios.VMIN] = 0
+attrs[6][termios.VTIME] = 5
+termios.tcsetattr(fd, termios.TCSANOW, attrs)
+termios.tcflush(fd, termios.TCIOFLUSH)
+time.sleep(0.2)
 
 # Send command
-printf '%s\n' "$CMD" > "$TTY"
+cmd = '''$CMD''' + '\n'
+os.write(fd, cmd.encode())
+time.sleep(0.5)
 
-# Wait for reader to finish (timeout)
-wait $READER 2>/dev/null || true
+# Read until timeout
+deadline = time.time() + $TIMEOUT
+data = b''
+while time.time() < deadline:
+    if select.select([fd], [], [], 0.5)[0]:
+        try:
+            chunk = os.read(fd, 8192)
+            if chunk:
+                data += chunk
+                # If we see the next prompt, we're done
+                if b'# ' in chunk and len(data) > len(cmd) + 10:
+                    break
+        except BlockingIOError:
+            pass
+    else:
+        if data:
+            break
+
+os.close(fd)
+
+lines = data.decode('utf-8', errors='replace').splitlines()
+# Skip the echo of our command and trailing prompt
+for line in lines:
+    line = line.rstrip()
+    if line and not line.endswith('# ') and not line.startswith(cmd.strip()):
+        sys.stdout.write(line + '\n')
+"

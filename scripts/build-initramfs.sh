@@ -27,6 +27,14 @@ echo "Creating initramfs layout..."
 rm -rf "$INITRAMFS"
 mkdir -p "$INITRAMFS"/{bin,sbin,usr/bin,dev,proc,sys,tmp,etc,lib/modules}
 
+# Static device nodes needed before devtmpfs mounts
+sudo mknod "$INITRAMFS/dev/console" c 5 1
+sudo mknod "$INITRAMFS/dev/null" c 1 3
+sudo mknod "$INITRAMFS/dev/tty0" c 4 0
+sudo mknod "$INITRAMFS/dev/tty1" c 4 1
+sudo chmod 622 "$INITRAMFS/dev/console" "$INITRAMFS/dev/tty0" "$INITRAMFS/dev/tty1"
+sudo chmod 666 "$INITRAMFS/dev/null"
+
 # Extract busybox binary
 echo "Extracting busybox..."
 tar xzf "$BUSYBOX_APK" -C "$OUT" bin/busybox.static 2>/dev/null || \

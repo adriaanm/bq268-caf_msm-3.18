@@ -47,7 +47,8 @@ if [ -e /dev/ttyGS0 ]; then
         echo "========================================"
         echo ""
     } > /dev/ttyGS0
-    setsid sh -c 'exec sh -l </dev/ttyGS0 >/dev/ttyGS0 2>&1' &
+    export ENV=/etc/profile
+    setsid sh -c 'exec sh </dev/ttyGS0 >/dev/ttyGS0 2>&1' &
 else
     # Blink green = ttyGS0 failed
     while true; do
