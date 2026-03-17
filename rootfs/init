@@ -1,55 +1,11 @@
 #!/bin/sh
-# Minimal init for CAF 3.18 register dump comparison
-# Console: USB ACM serial (/dev/ttyGS0) via android_usb gadget
-# acm_transports defaults to "tty" (patched in android.c)
+# CAF 3.18 initramfs: set up android_usb ACM then switch_root to Alpine on p36
 
 mount -t proc proc /proc
 mount -t sysfs sys /sys
 mount -t devtmpfs dev /dev
-mkdir -p /dev/pts
-mount -t devpts devpts /dev/pts
-mount -t debugfs debugfs /sys/kernel/debug 2>/dev/null
-mount -t tmpfs tmpfs /tmp
 
-hostname bq268-caf
-
-# LED indicator: green on = init reached
-echo 255 > /sys/class/leds/green/brightness 2>/dev/null
-
-# Mount firmware partitions for WCNSS WiFi + modem
-mkdir -p /lib/firmware /mnt/modem /mnt/persist
-mount -t vfat -o ro /dev/mmcblk0p1 /mnt/modem 2>/dev/null
-mount -t ext4 -o ro /dev/mmcblk0p7 /mnt/persist 2>/dev/null
-
-# Symlink PIL firmware segments (wcnss.mdt, wcnss.b*)
-if [ -d /mnt/modem/image ]; then
-    ln -sf /mnt/modem/image/wcnss.mdt /lib/firmware/wcnss.mdt
-    for f in /mnt/modem/image/wcnss.b*; do
-        ln -sf "$f" /lib/firmware/$(basename "$f")
-    done
-fi
-
-# WiFi NV calibration + config
-mkdir -p /lib/firmware/wlan/prima
-if [ -f /mnt/persist/WCNSS_qcom_wlan_nv.bin ]; then
-    ln -sf /mnt/persist/WCNSS_qcom_wlan_nv.bin /lib/firmware/wlan/prima/
-fi
-if [ -f /mnt/persist/WCNSS_wlan_dictionary.dat ]; then
-    ln -sf /mnt/persist/WCNSS_wlan_dictionary.dat /lib/firmware/
-fi
-
-# Mount system for WCNSS_cfg.dat
-mkdir -p /mnt/system
-mount -t ext4 -o ro /dev/mmcblk0p6 /mnt/system 2>/dev/null
-if [ -f /mnt/system/etc/firmware/wlan/prima/WCNSS_cfg.dat ]; then
-    ln -sf /mnt/system/etc/firmware/wlan/prima/WCNSS_cfg.dat /lib/firmware/wlan/prima/
-fi
-
-# WiFi: firmware symlinks are set up above; WCNSS trigger + insmod
-# wlan.ko is handled by the Alpine rootfs init on userdata (p36)
-
-# Enable android_usb with ACM function
-# acm_transports is pre-set to "tty" in kernel, just enable
+# Enable android_usb ACM (CAF-specific, must happen before switch_root)
 USB=/sys/class/android_usb/android0
 if [ -d "$USB" ]; then
     echo 0 > $USB/enable
@@ -60,41 +16,28 @@ if [ -d "$USB" ]; then
     echo 1 > $USB/enable
 fi
 
-# Wait for ttyGS0
-i=0
-while [ ! -e /dev/ttyGS0 ] && [ $i -lt 10 ]; do
-    sleep 1
-    i=$((i + 1))
-done
+# Green LED = initramfs reached
+echo 255 > /sys/class/leds/green/brightness 2>/dev/null
 
-# Spawn shell on USB serial gadget
+# Mount real rootfs and switch to it
+mkdir -p /mnt/root
+mount -t ext4 -o rw /dev/mmcblk0p36 /mnt/root
+
+if [ -x /mnt/root/sbin/init ]; then
+    # Move virtual filesystems to new root
+    mount --move /proc /mnt/root/proc
+    mount --move /sys /mnt/root/sys
+    mount --move /dev /mnt/root/dev
+    exec switch_root /mnt/root /sbin/init
+fi
+
+# Fallback: rootfs mount failed — drop to shell on ttyGS0
+echo 0 > /sys/class/leds/green/brightness 2>/dev/null
+echo 255 > /sys/class/leds/red/brightness 2>/dev/null
+
+i=0; while [ ! -e /dev/ttyGS0 ] && [ $i -lt 10 ]; do sleep 1; i=$((i+1)); done
 if [ -e /dev/ttyGS0 ]; then
-    echo 0 > /sys/class/leds/red/brightness 2>/dev/null
-    {
-        echo ""
-        echo "========================================"
-        echo " CAF 3.18 minimal Linux — BQ268"
-        echo " $(uname -r) / $(uname -m)"
-        echo " Register dump: dump-registers"
-        echo "========================================"
-        echo ""
-    } > /dev/ttyGS0
-    export ENV=/etc/profile
-    setsid sh -c 'exec sh </dev/ttyGS0 >/dev/ttyGS0 2>&1' &
-else
-    # Blink green = ttyGS0 failed
-    while true; do
-        echo 0 > /sys/class/leds/green/brightness 2>/dev/null; sleep 1
-        echo 255 > /sys/class/leds/green/brightness 2>/dev/null; sleep 1
-    done
+    echo "ERROR: rootfs mount failed, dropping to shell" > /dev/ttyGS0
+    exec setsid sh -c 'exec sh </dev/ttyGS0 >/dev/ttyGS0 2>&1'
 fi
-
-# Spawn shell on UART (fallback)
-if [ -e /dev/ttyHSL0 ]; then
-    setsid sh -c 'exec sh -l </dev/ttyHSL0 >/dev/ttyHSL0 2>&1' &
-fi
-
-# Keep init alive
-while true; do
-    sleep 3600
-done
+exec sh
