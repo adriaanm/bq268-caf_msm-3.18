@@ -289,22 +289,43 @@
 		pinctrl-1 = <&spi5_sleep &spi5_cs0_sleep>;
 		status = "okay";
 
+		/* MDSS SPI client disabled — using fbtft instead */
+		/*
 		qcom,mdss_spi_client {
 			reg = <0>;
 			compatible = "qcom,mdss-spi-client";
 			label = "MDSS SPI QUP5 CLIENT";
 			spi-max-frequency = <16000000>;
 		};
+		*/
+
+		/* ST7735S panel via fbtft */
+		panel@0 {
+			compatible = "sitronix,st7735r";
+			reg = <0>;
+			spi-max-frequency = <16000000>;
+			reset-gpios = <&msm_gpio 2 0>;
+			dc-gpios = <&msm_gpio 3 0>;
+			rotation = <90>;
+			fps = <20>;
+			buswidth = <8>;
+			width = <128>;
+			height = <160>;
+		};
 	};
 };
 
+/* MDSS disabled — using fbtft for display */
+/*
 &mdss_mdp {
 	qcom,mdss-pref-prim-intf = "spi";
 };
+*/
 
-/* MDSS SPI display controller */
+/* MDSS SPI display controller — disabled, using fbtft */
 &soc {
 	mdss_spi: qcom,mdss_spi {
+		status = "disabled";
 		compatible = "qcom,mdss-spi-display";
 		label = "mdss spi panel";
 		qcom,mdss-fb-map = <&mdss_fb0>;

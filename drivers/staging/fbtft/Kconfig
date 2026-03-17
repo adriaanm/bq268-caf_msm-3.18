@@ -1,0 +1,16 @@
+config FB_TFT
+	tristate "Support for small TFT LCD display modules"
+	depends on FB && SPI
+	select FB_SYS_FILLRECT
+	select FB_SYS_COPYAREA
+	select FB_SYS_IMAGEBLIT
+	select FB_SYS_FOPS
+	select FB_DEFERRED_IO
+	help
+	  Generic framebuffer support for small TFT LCD display modules.
+
+config FB_TFT_ST7735R
+	tristate "FB driver for the ST7735R LCD Controller"
+	depends on FB_TFT
+	help
+	  Framebuffer driver for the ST7735R/ST7735S LCD Controller.
