@@ -2462,7 +2462,9 @@ static int mdss_fb_alloc_fbmem_iommu(struct msm_fb_data_type *mfd, int dom)
 	fbmem_pnode = of_parse_phandle(pdev->dev.of_node,
 		"linux,contiguous-region", 0);
 	if (!fbmem_pnode) {
-		pr_debug("fbmem is not reserved for %s\n", pdev->name);
+		pr_info("fbmem: no contiguous-region for %s (of_node=%s)\n",
+			pdev->name, pdev->dev.of_node ?
+			pdev->dev.of_node->full_name : "none");
 		mfd->fbi->screen_base = NULL;
 		mfd->fbi->fix.smem_start = 0;
 		return 0;
@@ -2512,19 +2514,43 @@ static int mdss_fb_alloc_fbmem_iommu(struct msm_fb_data_type *mfd, int dom)
 
 static int mdss_fb_alloc_fbmem(struct msm_fb_data_type *mfd)
 {
+	size_t fb_size;
+	void *virt;
+	int rc;
 
 	if (mfd->mdp.fb_mem_alloc_fnc) {
-		return mfd->mdp.fb_mem_alloc_fnc(mfd);
-	} else if (mfd->mdp.fb_mem_get_iommu_domain) {
+		rc = mfd->mdp.fb_mem_alloc_fnc(mfd);
+		if (!rc)
+			return 0;
+	}
+
+	if (mfd->mdp.fb_mem_get_iommu_domain) {
 		int dom = mfd->mdp.fb_mem_get_iommu_domain();
-		if (dom >= 0)
-			return mdss_fb_alloc_fbmem_iommu(mfd, dom);
-		else
-			return -ENOMEM;
-	} else {
-		pr_err("no fb memory allocator function defined\n");
+		if (dom >= 0) {
+			rc = mdss_fb_alloc_fbmem_iommu(mfd, dom);
+			if (!rc)
+				return 0;
+		}
+	}
+
+	/* Fallback: vmalloc buffer for fbcon (no HW accel) */
+	fb_size = PAGE_ALIGN(mfd->fbi->fix.line_length *
+			     mfd->fbi->var.yres_virtual);
+	if (!fb_size)
+		return -EINVAL;
+
+	virt = vzalloc(fb_size);
+	if (!virt) {
+		pr_err("vmalloc fbmem failed size=%zu\n", fb_size);
 		return -ENOMEM;
 	}
+
+	mfd->fbi->screen_base = virt;
+	mfd->fbi->fix.smem_start = 0;
+	mfd->fbi->fix.smem_len = fb_size;
+	pr_info("fb%d: vmalloc fbmem %zuK for fbcon\n",
+		mfd->index, fb_size >> 10);
+	return 0;
 }
 
 static int mdss_fb_register(struct msm_fb_data_type *mfd)
@@ -2701,6 +2727,10 @@ static int mdss_fb_register(struct msm_fb_data_type *mfd)
 
 	if (mdss_fb_alloc_fbmem(mfd))
 		pr_warn("unable to allocate fb memory in fb register\n");
+
+	pr_info("fb%d: screen_base=%pK smem_start=0x%lx smem_len=%u before register_framebuffer\n",
+		mfd->index, fbi->screen_base,
+		fbi->fix.smem_start, fbi->fix.smem_len);
 
 	mfd->op_enable = true;
 
