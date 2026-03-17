@@ -6,12 +6,15 @@ out := "output"
 mkbootimg := "tools/mkbootimg/mkbootimg.py"
 defconfig := "bq268_defconfig"
 cmdline := "androidboot.hardware=qcom msm_rtb.filter=0x237 ehci-hcd.park=3 androidboot.bootdevice=7824900.sdhci lpm_levels.sleep_disabled=1 earlyprintk panic=5 ramoops.mem_address=0x9ff00000 ramoops.mem_size=0x40000 ramoops.console_size=0x20000 ramoops.record_size=0x10000 ramoops.pmsg_size=0x10000 console=ttyHSL0,115200 rdinit=/init"
+serial_tty := "/dev/ttyACM0"
 
 kmake := "make ARCH=arm CROSS_COMPILE=" + toolchain + " O=" + out
 
 # list recipes
 default:
     @just --list
+
+# ── Build ──────────────────────────────────────────────
 
 # configure kernel from defconfig
 defconfig:
@@ -21,6 +24,7 @@ defconfig:
 # build kernel zImage and DTBs
 build: defconfig
     {{kmake}} -j$(nproc) zImage dtbs 2>&1 | tee {{out}}/build.log
+    @if ! grep -q "zImage is ready" {{out}}/build.log; then echo "BUILD FAILED"; exit 1; fi
     cp {{out}}/arch/arm/boot/zImage {{out}}/zImage
     cp {{out}}/arch/arm/boot/dts/qcom/msm8909-bq268.dtb {{out}}/msm8909-bq268.dtb
     @ls -lh {{out}}/zImage {{out}}/msm8909-bq268.dtb
@@ -39,20 +43,87 @@ bootimg-assemble:
 # full build: kernel + initramfs + boot.img
 bootimg: build initramfs bootimg-assemble
 
-# flash boot image via fastboot (temporary, does not persist)
-fastboot-boot: bootimg
-    adb reboot bootloader
-    @echo "Waiting for fastboot..."
-    fastboot wait-for-device
+# ── Device ─────────────────────────────────────────────
+
+# boot image via fastboot (temporary, assumes device is already in fastboot)
+boot:
     fastboot boot {{out}}/boot-$(git rev-parse --short HEAD).img
 
-# flash boot image permanently
-fastboot-flash: bootimg
-    adb reboot bootloader
-    @echo "Waiting for fastboot..."
-    fastboot wait-for-device
+# flash boot image permanently (assumes device is already in fastboot)
+flash:
     fastboot flash boot {{out}}/boot-$(git rev-parse --short HEAD).img
     fastboot reboot
+
+# wait for device to boot and serial console to appear
+wait-serial:
+    #!/usr/bin/env bash
+    echo "Waiting for {{serial_tty}}..."
+    for i in $(seq 1 30); do
+        if [ -e "{{serial_tty}}" ]; then
+            sleep 2  # let shell finish spawning
+            echo "Serial console ready on {{serial_tty}}"
+            exit 0
+        fi
+        sleep 1
+    done
+    echo "TIMEOUT: {{serial_tty}} never appeared"
+    exit 1
+
+# wait for fastboot device
+wait-fastboot:
+    #!/usr/bin/env bash
+    echo "Waiting for fastboot..."
+    for i in $(seq 1 30); do
+        if fastboot devices 2>/dev/null | grep -q .; then
+            echo "Fastboot device ready"
+            exit 0
+        fi
+        sleep 1
+    done
+    echo "TIMEOUT: no fastboot device"
+    exit 1
+
+# send command to device serial console, capture output
+serial cmd timeout="5":
+    bash scripts/serial-cmd.sh "{{cmd}}" "{{timeout}}"
+
+# reboot device into fastboot via serial console
+dev-reboot:
+    #!/usr/bin/env bash
+    if [ ! -e "{{serial_tty}}" ]; then
+        echo "No serial device — already in fastboot?"
+        exit 0
+    fi
+    stty -F "{{serial_tty}}" 115200 raw -echo -echoe -echok
+    echo "Sending reboot-bootloader..."
+    printf 'reboot-bootloader\n' > "{{serial_tty}}"
+    sleep 3
+    # Verify device left Linux (serial gone) and entered fastboot
+    if [ -e "{{serial_tty}}" ]; then
+        echo "WARNING: serial still present, device may not have rebooted"
+        exit 1
+    fi
+    echo "Device rebooting to fastboot..."
+    just wait-fastboot
+
+# ── Iteration cycle ────────────────────────────────────
+
+# full cycle: build → boot → wait for serial → grab dmesg
+cycle: bootimg
+    #!/usr/bin/env bash
+    echo "=== Booting device ==="
+    just boot
+    just wait-serial
+    echo "=== Device booted, grabbing dmesg ==="
+    just serial "dmesg" "15" | tee {{out}}/dmesg-$(git rev-parse --short HEAD).txt
+    echo "=== dmesg saved to {{out}}/dmesg-$(git rev-parse --short HEAD).txt ==="
+
+# reboot device and start a new cycle
+recycle:
+    just dev-reboot
+    just cycle
+
+# ── Interactive ────────────────────────────────────────
 
 # interactive menuconfig
 menuconfig: defconfig
@@ -61,6 +132,8 @@ menuconfig: defconfig
 # compare built DTB against stock
 dtb-diff dtb_stock="docs/fdt_stock.dtb":
     uv run --with fdt python3 scripts/dtb_diff.py {{dtb_stock}} {{out}}/msm8909-bq268.dtb
+
+# ── Experiments & Tasks ────────────────────────────────
 
 # show experiment log
 experiments:

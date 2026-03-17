@@ -60,6 +60,10 @@ chmod 755 "$INITRAMFS/init"
 cp "$ROOTFS_SRC/dump-registers.sh" "$INITRAMFS/usr/bin/dump-registers"
 chmod 755 "$INITRAMFS/usr/bin/dump-registers"
 
+# reboot-bootloader (pre-compiled static binary)
+cp "$ROOT_DIR/tools/reboot-bootloader" "$INITRAMFS/sbin/reboot-bootloader"
+chmod 755 "$INITRAMFS/sbin/reboot-bootloader"
+
 # /etc/inittab
 cp "$ROOTFS_SRC/etc/inittab" "$INITRAMFS/etc/inittab"
 
