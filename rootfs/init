@@ -4,8 +4,10 @@
 mount -t proc proc /proc
 mount -t sysfs sys /sys
 mount -t devtmpfs dev /dev
+mkdir -p /dev/pts
+mount -t devpts devpts /dev/pts
 
-# Enable android_usb ACM (CAF-specific, must happen before switch_root)
+# Enable android_usb ACM (CAF-specific)
 USB=/sys/class/android_usb/android0
 if [ -d "$USB" ]; then
     echo 0 > $USB/enable
@@ -16,28 +18,45 @@ if [ -d "$USB" ]; then
     echo 1 > $USB/enable
 fi
 
-# Green LED = initramfs reached
 echo 255 > /sys/class/leds/green/brightness 2>/dev/null
 
-# Mount real rootfs and switch to it
-mkdir -p /mnt/root
-mount -t ext4 -o rw /dev/mmcblk0p36 /mnt/root
-
-if [ -x /mnt/root/sbin/init ]; then
-    # Move virtual filesystems to new root
-    mount --move /proc /mnt/root/proc
-    mount --move /sys /mnt/root/sys
-    mount --move /dev /mnt/root/dev
-    exec switch_root /mnt/root /sbin/init
-fi
-
-# Fallback: rootfs mount failed — drop to shell on ttyGS0
-echo 0 > /sys/class/leds/green/brightness 2>/dev/null
-echo 255 > /sys/class/leds/red/brightness 2>/dev/null
-
+# Wait for ttyGS0 so we always have a debug shell
 i=0; while [ ! -e /dev/ttyGS0 ] && [ $i -lt 10 ]; do sleep 1; i=$((i+1)); done
-if [ -e /dev/ttyGS0 ]; then
-    echo "ERROR: rootfs mount failed, dropping to shell" > /dev/ttyGS0
-    exec setsid sh -c 'exec sh </dev/ttyGS0 >/dev/ttyGS0 2>&1'
+
+# Try to mount p36
+mkdir -p /mnt/root
+if mount -t ext4 -o rw /dev/mmcblk0p36 /mnt/root 2>/dev/null; then
+    echo 0 > /sys/class/leds/red/brightness 2>/dev/null
+    # Check if Alpine rootfs looks valid
+    if [ -x /mnt/root/sbin/init ] && [ -d /mnt/root/etc/init.d ]; then
+        # Parse init= from cmdline, default to /sbin/init
+        REAL_INIT="/sbin/init"
+        for arg in $(cat /proc/cmdline); do
+            case "$arg" in init=*) REAL_INIT="${arg#init=}" ;; esac
+        done
+        # Move virtual filesystems
+        umount /dev/pts 2>/dev/null
+        mount --move /proc /mnt/root/proc
+        mount --move /sys /mnt/root/sys
+        mount --move /dev /mnt/root/dev
+        exec switch_root /mnt/root $REAL_INIT
+    fi
 fi
-exec sh
+
+# Fallback: stay in initramfs with serial shell
+echo 255 > /sys/class/leds/red/brightness 2>/dev/null
+if [ -e /dev/ttyGS0 ]; then
+    {
+        echo ""
+        echo "=== CAF 3.18 initramfs (p36 mount failed) ==="
+        echo "$(cat /proc/version 2>/dev/null | cut -d' ' -f3)"
+        echo ""
+        mount /dev/mmcblk0p36 /mnt/root 2>&1 || echo "mount error: $?"
+        ls /mnt/root/ 2>&1
+        echo ""
+    } > /dev/ttyGS0
+    export ENV=/etc/profile
+    setsid sh -c 'exec sh </dev/ttyGS0 >/dev/ttyGS0 2>&1' &
+fi
+
+while true; do sleep 3600; done
