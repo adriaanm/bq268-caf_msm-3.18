@@ -1,13 +1,15 @@
 #!/bin/sh
-# CAF 3.18 initramfs: set up android_usb ACM then switch_root to Alpine on p36
+# CAF 3.18 initramfs: android_usb ACM + Alpine on p36 (no switch_root)
+# Stays in initramfs as PID 1 — alpine available via chroot /mnt/root
 
 mount -t proc proc /proc
 mount -t sysfs sys /sys
 mount -t devtmpfs dev /dev
 mkdir -p /dev/pts
 mount -t devpts devpts /dev/pts
+mount -t tmpfs tmpfs /tmp
 
-# Enable android_usb ACM (CAF-specific)
+# Enable android_usb ACM
 USB=/sys/class/android_usb/android0
 if [ -d "$USB" ]; then
     echo 0 > $USB/enable
@@ -20,42 +22,31 @@ fi
 
 echo 255 > /sys/class/leds/green/brightness 2>/dev/null
 
-# Wait for ttyGS0 so we always have a debug shell
-i=0; while [ ! -e /dev/ttyGS0 ] && [ $i -lt 10 ]; do sleep 1; i=$((i+1)); done
-
-# Try to mount p36
+# Mount Alpine rootfs
 mkdir -p /mnt/root
-if mount -t ext4 -o rw /dev/mmcblk0p36 /mnt/root 2>/dev/null; then
+mount -t ext4 -o rw /dev/mmcblk0p36 /mnt/root 2>/dev/null
+if [ -d /mnt/root/etc ]; then
     echo 0 > /sys/class/leds/red/brightness 2>/dev/null
-    # Check if Alpine rootfs looks valid
-    if [ -x /mnt/root/sbin/init ] && [ -d /mnt/root/etc/init.d ]; then
-        # Parse init= from cmdline, default to /sbin/init
-        REAL_INIT="/sbin/init"
-        for arg in $(cat /proc/cmdline); do
-            case "$arg" in init=*) REAL_INIT="${arg#init=}" ;; esac
-        done
-        # Move virtual filesystems
-        umount /dev/pts 2>/dev/null
-        mount --move /proc /mnt/root/proc
-        mount --move /sys /mnt/root/sys
-        mount --move /dev /mnt/root/dev
-        exec switch_root /mnt/root $REAL_INIT
-    fi
+    # Bind virtual fs for chroot
+    mount --bind /proc /mnt/root/proc
+    mount --bind /sys /mnt/root/sys
+    mount --bind /dev /mnt/root/dev
+    mkdir -p /mnt/root/dev/pts
+    mount --bind /dev/pts /mnt/root/dev/pts
 fi
 
-# Fallback: stay in initramfs with serial shell
-echo 255 > /sys/class/leds/red/brightness 2>/dev/null
+# Wait for ttyGS0
+i=0; while [ ! -e /dev/ttyGS0 ] && [ $i -lt 10 ]; do sleep 1; i=$((i+1)); done
+
 if [ -e /dev/ttyGS0 ]; then
     {
         echo ""
-        echo "=== CAF 3.18 initramfs (p36 mount failed) ==="
-        echo "$(cat /proc/version 2>/dev/null | cut -d' ' -f3)"
-        echo ""
-        mount /dev/mmcblk0p36 /mnt/root 2>&1 || echo "mount error: $?"
-        ls /mnt/root/ 2>&1
+        echo "=== CAF 3.18 — BQ268 ==="
+        echo "Alpine rootfs: $(cat /mnt/root/etc/alpine-release 2>/dev/null || echo 'NOT MOUNTED')"
+        echo "To enter Alpine: chroot /mnt/root /bin/sh"
         echo ""
     } > /dev/ttyGS0
-    export ENV=/etc/profile
+    export PATH=/bin:/sbin:/usr/bin:/usr/sbin
     setsid sh -c 'exec sh </dev/ttyGS0 >/dev/ttyGS0 2>&1' &
 fi
 
