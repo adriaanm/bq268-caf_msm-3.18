@@ -38,6 +38,7 @@ MODULE_PARM_DESC(debug, "override device debug level");
 int fbtft_write_buf_dc(struct fbtft_par *par, void *buf, size_t len, int dc)
 {
 	int ret;
+	static int cmd_count;
 
 	gpiod_set_value(par->gpio.dc, dc);
 
@@ -45,6 +46,10 @@ int fbtft_write_buf_dc(struct fbtft_par *par, void *buf, size_t len, int dc)
 	if (ret < 0)
 		dev_err(par->info->device,
 			"write() failed and returned %d\n", ret);
+	if (cmd_count < 30 && dc == 0)
+		dev_info(par->info->device, "SPI cmd: 0x%02x len=%zu ret=%d\n",
+			 ((u8 *)buf)[0], len, ret);
+	cmd_count++;
 	return ret;
 }
 EXPORT_SYMBOL(fbtft_write_buf_dc);
@@ -218,8 +223,10 @@ static void fbtft_reset(struct fbtft_par *par)
 	if (!par->gpio.reset)
 		return;
 
+	/* Assert reset (logical 1 = active, GPIO_ACTIVE_LOW inverts) */
 	gpiod_set_value_cansleep(par->gpio.reset, 1);
-	usleep_range(20, 40);
+	msleep(20);
+	/* Deassert reset */
 	gpiod_set_value_cansleep(par->gpio.reset, 0);
 	msleep(120);
 
@@ -229,11 +236,17 @@ static void fbtft_reset(struct fbtft_par *par)
 static void fbtft_update_display(struct fbtft_par *par, unsigned int start_line,
 				 unsigned int end_line)
 {
+	static int update_count;
 	size_t offset, len;
 	ktime_t ts_start, ts_end;
 	long fps, throughput;
 	bool timeit = false;
 	int ret = 0;
+
+	if (update_count < 5)
+		dev_info(par->info->device, "update_display #%d lines %u-%u\n",
+			 update_count, start_line, end_line);
+	update_count++;
 
 	if (unlikely(par->debug & (DEBUG_TIME_FIRST_UPDATE |
 			DEBUG_TIME_EACH_UPDATE))) {
@@ -328,6 +341,11 @@ static void fbtft_deferred_io(struct fb_info *info, struct list_head *pagelist)
 	struct page *page;
 	unsigned long index;
 	unsigned int y_low = 0, y_high = 0;
+	static int dio_count;
+
+	if (dio_count < 3)
+		dev_info(info->device, "fbtft_deferred_io called #%d\n", dio_count);
+	dio_count++;
 
 	spin_lock(&par->dirty_lock);
 	dirty_lines_start = par->dirty_lines_start;
@@ -425,11 +443,17 @@ static ssize_t fbtft_fb_read(struct fb_info *info, char __user *buf,
 static ssize_t fbtft_fb_write(struct fb_info *info, const char __user *buf,
 			      size_t count, loff_t *ppos)
 {
+	static int write_count;
 	ssize_t ret = fb_sys_write(info, buf, count, ppos);
 
 	if (ret > 0) {
+		bool queued;
 		fbtft_mkdirty(info, -1, 0);
-		schedule_delayed_work(&info->deferred_work, 0);
+		queued = schedule_delayed_work(&info->deferred_work, 0);
+		if (write_count < 3)
+			dev_info(info->device, "fb_write %zd bytes, queued=%d\n",
+				 ret, queued);
+		write_count++;
 	}
 	return ret;
 }

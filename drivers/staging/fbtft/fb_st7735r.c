@@ -13,71 +13,30 @@
 #include "fbtft.h"
 
 #define DRVNAME "fb_st7735r"
-#define DEFAULT_GAMMA   "0F 1A 0F 18 2F 28 20 22 1F 1B 23 37 00 07 02 10\n" \
-			"0F 1B 0F 17 33 2C 29 2E 30 30 39 3F 00 07 03 10"
+/* BQ268 ST7735S gamma from bootloader (panel_st7735s_cmd.h) */
+#define DEFAULT_GAMMA   "04 22 07 0A 2E 30 25 2A 28 26 2E 3A 00 01 03 13\n" \
+			"04 16 06 0D 2D 26 23 27 27 25 2D 3B 00 01 04 13"
 
+/* Init sequence matching BQ268 bootloader (ST7735S) */
 static const s16 default_init_sequence[] = {
-	-1, MIPI_DCS_SOFT_RESET,
-	-2, 150,                               /* delay */
-
 	-1, MIPI_DCS_EXIT_SLEEP_MODE,
-	-2, 500,                               /* delay */
+	-2, 120,
 
-	/* FRMCTR1 - frame rate control: normal mode
-	 * frame rate = fosc / (1 x 2 + 40) * (LINE + 2C + 2D)
-	 */
-	-1, 0xB1, 0x01, 0x2C, 0x2D,
-
-	/* FRMCTR2 - frame rate control: idle mode
-	 * frame rate = fosc / (1 x 2 + 40) * (LINE + 2C + 2D)
-	 */
-	-1, 0xB2, 0x01, 0x2C, 0x2D,
-
-	/* FRMCTR3 - frame rate control - partial mode
-	 * dot inversion mode, line inversion mode
-	 */
-	-1, 0xB3, 0x01, 0x2C, 0x2D, 0x01, 0x2C, 0x2D,
-
-	/* INVCTR - display inversion control
-	 * no inversion
-	 */
-	-1, 0xB4, 0x07,
-
-	/* PWCTR1 - Power Control
-	 * -4.6V, AUTO mode
-	 */
-	-1, 0xC0, 0xA2, 0x02, 0x84,
-
-	/* PWCTR2 - Power Control
-	 * VGH25 = 2.4C VGSEL = -10 VGH = 3 * AVDD
-	 */
-	-1, 0xC1, 0xC5,
-
-	/* PWCTR3 - Power Control
-	 * Opamp current small, Boost frequency
-	 */
-	-1, 0xC2, 0x0A, 0x00,
-
-	/* PWCTR4 - Power Control
-	 * BCLK/2, Opamp current small & Medium low
-	 */
-	-1, 0xC3, 0x8A, 0x2A,
-
-	/* PWCTR5 - Power Control */
-	-1, 0xC4, 0x8A, 0xEE,
-
-	/* VMCTR1 - Power Control */
-	-1, 0xC5, 0x0E,
-
-	-1, MIPI_DCS_EXIT_INVERT_MODE,
+	-1, 0xB1, 0x05, 0x3C, 0x3C,           /* FRMCTR1 */
+	-1, 0xB2, 0x05, 0x3C, 0x3C,           /* FRMCTR2 */
+	-1, 0xB3, 0x05, 0x3C, 0x3C, 0x05, 0x3C, 0x3C, /* FRMCTR3 */
+	-1, 0xB4, 0x03,                        /* INVCTR */
+	-1, 0xC0, 0x28, 0x08, 0x04,           /* PWCTR1 */
+	-1, 0xC1, 0xC0,                        /* PWCTR2 */
+	-1, 0xC2, 0x0D, 0x00,                 /* PWCTR3 */
+	-1, 0xC3, 0x8D, 0x2A,                 /* PWCTR4 */
+	-1, 0xC4, 0x8D, 0xEE,                 /* PWCTR5 */
+	-1, 0xC5, 0x1A,                        /* VMCTR1 */
 
 	-1, MIPI_DCS_SET_PIXEL_FORMAT, MIPI_DCS_PIXEL_FMT_16BIT,
 
 	-1, MIPI_DCS_SET_DISPLAY_ON,
-	-2, 100,                               /* delay */
-
-	-1, MIPI_DCS_ENTER_NORMAL_MODE,
-	-2, 10,                               /* delay */
+	-2, 10,
 
 	/* end marker */
 	-3

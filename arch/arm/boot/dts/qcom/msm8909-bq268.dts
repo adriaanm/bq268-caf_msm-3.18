@@ -265,26 +265,16 @@
 /* SPI5 controller (BLSP1 QUP5) */
 &soc {
 	blsp_spi5: spi@78b9000 {
-		compatible = "qcom,spi-qup-v2";
+		compatible = "qcom,spi-qup-v2.2.1";
 		#address-cells = <1>;
 		#size-cells = <0>;
-		reg-names = "spi_physical", "spi_bam_physical";
-		reg = <0x78b9000 0x600>,
-		      <0x7884000 0x23000>;
-		interrupt-names = "spi_irq", "spi_bam_irq";
-		interrupts = <0 99 0>, <0 238 0>;
+		reg = <0x78b9000 0x600>;
+		interrupts = <0 99 0>;
 		spi-max-frequency = <50000000>;
-		clock-names = "iface_clk", "core_clk";
-		clocks = <&clock_gcc clk_gcc_blsp1_ahb_clk>,
-		         <&clock_gcc clk_gcc_blsp1_qup5_spi_apps_clk>;
-		qcom,infinite-mode = <0>;
-		qcom,use-bam;
-		qcom,use-pinctrl;
-		qcom,ver-reg-exists;
-		qcom,bam-consumer-pipe-index = <12>;
-		qcom,bam-producer-pipe-index = <13>;
-		qcom,master-id = <86>;
-		pinctrl-names = "spi_default", "spi_sleep";
+		clock-names = "core", "iface";
+		clocks = <&clock_gcc clk_gcc_blsp1_qup5_spi_apps_clk>,
+		         <&clock_gcc clk_gcc_blsp1_ahb_clk>;
+		pinctrl-names = "default", "sleep";
 		pinctrl-0 = <&spi5_default &spi5_cs0_active>;
 		pinctrl-1 = <&spi5_sleep &spi5_cs0_sleep>;
 		status = "okay";
@@ -304,11 +294,12 @@
 			compatible = "sitronix,st7735r";
 			reg = <0>;
 			spi-max-frequency = <16000000>;
-			reset-gpios = <&msm_gpio 2 0>;
+			reset-gpios = <&msm_gpio 2 1>; /* GPIO_ACTIVE_LOW */
 			dc-gpios = <&msm_gpio 3 0>;
 			rotation = <90>;
 			fps = <20>;
 			buswidth = <8>;
+			txbuflen = <4096>;
 			width = <128>;
 			height = <160>;
 		};
