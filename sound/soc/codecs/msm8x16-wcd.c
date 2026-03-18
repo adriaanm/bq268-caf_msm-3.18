@@ -6200,18 +6200,17 @@ static int msm8x16_wcd_spmi_probe(struct spmi_device *spmi)
 	struct msm8x16_wcd *msm8x16 = NULL;
 	struct msm8x16_wcd_pdata *pdata;
 	struct resource *wcd_resource;
-	int adsp_state;
 	static int spmi_dev_registered_cnt;
 
 	dev_dbg(&spmi->dev, "%s(%d):slave ID = 0x%x\n",
 		__func__, __LINE__,  spmi->sid);
 
-	adsp_state = apr_get_subsys_state();
-	if (adsp_state != APR_SUBSYS_LOADED) {
-		dev_dbg(&spmi->dev, "Adsp is not loaded yet %d\n",
-				adsp_state);
-		return -EPROBE_DEFER;
-	}
+	/*
+	 * MSM8909: no separate LPASS — modem Q6 handles audio DSP.
+	 * The codec SPMI hardware can probe independently; APR/DSP
+	 * is only needed later for actual audio playback.
+	 * Skip the APR state check to avoid probe deferral deadlock.
+	 */
 
 	wcd_resource = spmi_get_resource(spmi, NULL, IORESOURCE_MEM, 0);
 	if (!wcd_resource) {
