@@ -23,7 +23,15 @@
 
 enum apr_subsys_state apr_get_subsys_state(void)
 {
-	return apr_get_modem_state();
+	/*
+	 * MSM8909: no separate LPASS — modem Q6 handles audio.
+	 * The modem notifier sets APR_SUBSYS_UP, but the codec
+	 * driver checks for APR_SUBSYS_LOADED. Map UP → LOADED.
+	 */
+	enum apr_subsys_state state = apr_get_modem_state();
+	if (state == APR_SUBSYS_UP)
+		return APR_SUBSYS_LOADED;
+	return state;
 }
 
 void apr_set_subsys_state(void)
